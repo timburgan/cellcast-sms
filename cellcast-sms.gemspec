@@ -1,0 +1,39 @@
+# frozen_string_literal: true
+
+require_relative "lib/cellcast/sms/version"
+
+Gem::Specification.new do |spec|
+  spec.name = "cellcast-sms"
+  spec.version = Cellcast::SMS::VERSION
+  spec.authors = ["Tim Burgan"]
+  spec.email = ["tim@burgan.id.au"]
+
+  spec.summary = "Ruby gem for Cellcast API SMS endpoints"
+  spec.description = "A Ruby gem for interacting with Cellcast API SMS endpoints, supporting sending SMS messages and managing sender IDs."
+  spec.homepage = "https://github.com/timburgan/cellcast-sms"
+  spec.license = "MIT"
+  spec.required_ruby_version = ">= 3.3.0"
+
+  spec.metadata["allowed_push_host"] = "https://rubygems.org"
+  spec.metadata["homepage_uri"] = spec.homepage
+  spec.metadata["source_code_uri"] = "https://github.com/timburgan/cellcast-sms"
+  spec.metadata["changelog_uri"] = "https://github.com/timburgan/cellcast-sms/blob/main/CHANGELOG.md"
+
+  # Specify which files should be added to the gem when it is released.
+  # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
+  spec.files = Dir.chdir(__dir__) do
+    `git ls-files -z`.split("\x0").reject do |f|
+      (File.expand_path(f) == __FILE__) ||
+        f.start_with?(*%w[bin/ test/ spec/ features/ .git .github appveyor Gemfile])
+    end
+  end
+  spec.bindir = "exe"
+  spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
+  spec.require_paths = ["lib"]
+
+  # No external dependencies - using only standard library
+  # This minimizes dependencies as requested
+
+  # For more information and examples about making a new gem, check out our
+  # guide at: https://bundler.io/guides/creating_gem.html
+end
