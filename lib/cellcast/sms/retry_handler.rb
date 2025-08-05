@@ -3,21 +3,26 @@
 module Cellcast
   module SMS
     # Retry handler with exponential backoff for robust error handling
-    # Handles transient failures, rate limits, and network errors
+    # Uses sensible hardcoded defaults for reliable operation
     module RetryHandler
+      # Hardcoded retry configuration for optimal reliability
+      MAX_RETRIES = 3
+      BASE_DELAY = 1.0
+      MAX_DELAY = 32.0
+      BACKOFF_MULTIPLIER = 2.0
+
       # Execute request with retry logic
-      # @param config [Configuration] Configuration object
       # @param logger [Logger, nil] Optional logger
       # @yield Block to execute with retry logic
       # @return Result of the yielded block
-      def self.with_retries(config:, logger: nil, &block)
+      def self.with_retries(logger: nil, &block)
         attempt = 0
         begin
           attempt += 1
           block.call
         rescue => error
-          if should_retry?(error, attempt, config)
-            delay = calculate_delay(attempt, config, error)
+          if should_retry?(error, attempt)
+            delay = calculate_delay(attempt, error)
             log_retry(logger, error, attempt, delay)
             sleep(delay)
             retry
@@ -30,13 +35,11 @@ module Cellcast
       private
 
       # Determine if error should trigger a retry
-      def self.should_retry?(error, attempt, config)
-        return false if attempt > config.max_retries
+      def self.should_retry?(error, attempt)
+        return false if attempt > MAX_RETRIES
         
         case error
-        when RateLimitError
-          config.retry_on_rate_limit
-        when ServerError, NetworkError, TimeoutError
+        when RateLimitError, ServerError, NetworkError, TimeoutError
           true
         else
           false
@@ -44,17 +47,15 @@ module Cellcast
       end
 
       # Calculate exponential backoff delay
-      def self.calculate_delay(attempt, config, error)
-        base_delay = config.base_delay
-        
+      def self.calculate_delay(attempt, error)
         # Use retry-after header for rate limits if available
         if error.is_a?(RateLimitError) && error.retry_after
-          return [error.retry_after, config.max_delay].min
+          return [error.retry_after, MAX_DELAY].min
         end
         
         # Exponential backoff with jitter
-        delay = base_delay * (config.backoff_multiplier ** (attempt - 1))
-        delay = [delay, config.max_delay].min
+        delay = BASE_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
+        delay = [delay, MAX_DELAY].min
         
         # Add jitter (±25% of delay)
         jitter = delay * 0.25 * (rand - 0.5) * 2

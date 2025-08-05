@@ -16,10 +16,10 @@ class TestClient < Minitest::Test
 
   def test_client_initialization_with_custom_config
     config = Cellcast::SMS::Configuration.new
-    config.max_retries = 5
+    config.open_timeout = 45
     
     client = Cellcast.sms(api_key: @api_key, config: config)
-    assert_equal 5, client.config.max_retries
+    assert_equal 45, client.config.open_timeout
   end
 
   def test_invalid_api_key_raises_validation_error

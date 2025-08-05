@@ -49,7 +49,7 @@ module Cellcast
       # Make HTTP requests to the API with retry logic
       # Following Sandi Metz rule: methods should be small
       def request(method:, path:, body: nil, headers: {})
-        RetryHandler.with_retries(config: config, logger: config.logger) do
+        RetryHandler.with_retries(logger: config.logger) do
           execute_request(method, path, body, headers)
         end
       end

@@ -3,17 +3,10 @@
 require "test_helper"
 
 class TestRetryHandler < Minitest::Test
-  def setup
-    @config = Cellcast::SMS::Configuration.new
-    @config.max_retries = 2
-    @config.base_delay = 0.1  # Short delay for tests
-    @config.max_delay = 1.0
-  end
-
   def test_successful_execution_no_retry
     call_count = 0
     
-    result = Cellcast::SMS::RetryHandler.with_retries(config: @config) do
+    result = Cellcast::SMS::RetryHandler.with_retries do
       call_count += 1
       "success"
     end
@@ -25,7 +18,7 @@ class TestRetryHandler < Minitest::Test
   def test_retry_on_server_error
     call_count = 0
     
-    result = Cellcast::SMS::RetryHandler.with_retries(config: @config) do
+    result = Cellcast::SMS::RetryHandler.with_retries do
       call_count += 1
       if call_count < 3
         raise Cellcast::SMS::ServerError.new("Server error", status_code: 500)
@@ -40,7 +33,7 @@ class TestRetryHandler < Minitest::Test
   def test_retry_on_network_error
     call_count = 0
     
-    result = Cellcast::SMS::RetryHandler.with_retries(config: @config) do
+    result = Cellcast::SMS::RetryHandler.with_retries do
       call_count += 1
       if call_count < 2
         raise Cellcast::SMS::TimeoutError, "Request timeout"
@@ -55,7 +48,7 @@ class TestRetryHandler < Minitest::Test
   def test_retry_on_rate_limit_with_retry_after
     call_count = 0
     
-    result = Cellcast::SMS::RetryHandler.with_retries(config: @config) do
+    result = Cellcast::SMS::RetryHandler.with_retries do
       call_count += 1
       if call_count < 2
         raise Cellcast::SMS::RateLimitError.new(
@@ -75,7 +68,7 @@ class TestRetryHandler < Minitest::Test
     call_count = 0
     
     error = assert_raises(Cellcast::SMS::AuthenticationError) do
-      Cellcast::SMS::RetryHandler.with_retries(config: @config) do
+      Cellcast::SMS::RetryHandler.with_retries do
         call_count += 1
         raise Cellcast::SMS::AuthenticationError, "Invalid API key"
       end
@@ -89,7 +82,7 @@ class TestRetryHandler < Minitest::Test
     call_count = 0
     
     error = assert_raises(Cellcast::SMS::ValidationError) do
-      Cellcast::SMS::RetryHandler.with_retries(config: @config) do
+      Cellcast::SMS::RetryHandler.with_retries do
         call_count += 1
         raise Cellcast::SMS::ValidationError, "Invalid input"
       end
@@ -103,14 +96,14 @@ class TestRetryHandler < Minitest::Test
     call_count = 0
     
     error = assert_raises(Cellcast::SMS::ServerError) do
-      Cellcast::SMS::RetryHandler.with_retries(config: @config) do
+      Cellcast::SMS::RetryHandler.with_retries do
         call_count += 1
         raise Cellcast::SMS::ServerError.new("Server error", status_code: 500)
       end
     end
 
     assert_equal "Server error", error.message
-    assert_equal 3, call_count  # 1 initial + 2 retries
+    assert_equal 4, call_count  # 1 initial + 3 retries (MAX_RETRIES = 3)
   end
 
   def test_exponential_backoff_calculation
@@ -118,21 +111,26 @@ class TestRetryHandler < Minitest::Test
     delay1 = Cellcast::SMS::RetryHandler.send(
       :calculate_delay, 
       1, 
-      @config, 
       Cellcast::SMS::ServerError.new("test")
     )
     
     delay2 = Cellcast::SMS::RetryHandler.send(
       :calculate_delay, 
       2, 
-      @config, 
       Cellcast::SMS::ServerError.new("test")
     )
 
-    # Base delay should be around 0.1, second attempt around 0.2 (with jitter)
-    assert_operator delay1, :>=, 0.05
-    assert_operator delay1, :<=, 0.15
-    assert_operator delay2, :>=, 0.15
-    assert_operator delay2, :<=, 0.25
+    # Base delay should be around 1.0, second attempt around 2.0 (with jitter)
+    assert_operator delay1, :>=, 0.75
+    assert_operator delay1, :<=, 1.25
+    assert_operator delay2, :>=, 1.5
+    assert_operator delay2, :<=, 2.5
+  end
+
+  def test_hardcoded_retry_constants
+    assert_equal 3, Cellcast::SMS::RetryHandler::MAX_RETRIES
+    assert_equal 1.0, Cellcast::SMS::RetryHandler::BASE_DELAY
+    assert_equal 32.0, Cellcast::SMS::RetryHandler::MAX_DELAY
+    assert_equal 2.0, Cellcast::SMS::RetryHandler::BACKOFF_MULTIPLIER
   end
 end
