@@ -1,5 +1,7 @@
 # Cellcast SMS
 
+> **Note**: This is an unofficial gem that wraps the official Cellcast API. For official API documentation, visit [developer.cellcast.com](https://developer.cellcast.com).
+
 A Ruby gem for the Cellcast API with complete bidirectional SMS support. Send messages, receive replies, and manage conversations with a simple, developer-friendly interface.
 
 ## Features
