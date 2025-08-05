@@ -6,7 +6,8 @@ A Ruby gem for interacting with the Cellcast API SMS endpoints. This gem provide
 
 - Send individual and bulk SMS messages
 - Manage sender IDs (business names and custom numbers)
-- Configure and manage webhooks
+- **Handle incoming messages and replies** - New!
+- Configure and manage webhooks for real-time notifications
 - Token verification and usage tracking
 - Comprehensive error handling
 - Minimal dependencies (uses only Ruby standard library)
@@ -42,6 +43,29 @@ client = Cellcast.sms(api_key: 'your-api-key')
 client = Cellcast.sms(
   api_key: 'your-api-key',
   base_url: 'https://api.cellcast.com'
+)
+```
+
+### Quick Example
+
+```ruby
+# Send an SMS
+response = client.sms.send_message(
+  to: '+1234567890',
+  message: 'Hello from Cellcast!',
+  sender_id: 'YourBrand'
+)
+
+# Check for incoming messages and replies
+incoming = client.incoming.list_incoming(unread_only: true)
+incoming.each do |message|
+  puts "Received from #{message['from']}: #{message['message']}"
+end
+
+# Configure webhook for real-time notifications
+client.webhook.configure_webhook(
+  url: 'https://yourapp.com/webhooks/cellcast',
+  events: ['sms.sent', 'sms.delivered', 'sms.received', 'sms.reply']
 )
 ```
 
@@ -90,6 +114,61 @@ messages = client.sms.list_messages(
   date_from: '2024-01-01',
   date_to: '2024-01-31'
 )
+```
+
+### Handling Incoming Messages & Replies
+
+#### List Incoming Messages
+
+```ruby
+# Get all incoming messages
+incoming = client.incoming.list_incoming(
+  limit: 50,
+  offset: 0,
+  unread_only: true
+)
+
+# Filter by date range and sender ID  
+incoming = client.incoming.list_incoming(
+  date_from: '2024-01-01',
+  date_to: '2024-01-31',
+  sender_id: 'YourBrand'
+)
+```
+
+#### Get Specific Incoming Message
+
+```ruby
+message = client.incoming.get_incoming_message(message_id: 'incoming_123456')
+puts message['from']  # Sender's phone number
+puts message['message']  # Message content
+puts message['received_at']  # Timestamp
+```
+
+#### Mark Messages as Read
+
+```ruby
+# Mark single message as read
+client.incoming.mark_as_read(message_ids: ['incoming_123456'])
+
+# Mark multiple messages as read
+client.incoming.mark_as_read(
+  message_ids: ['incoming_123456', 'incoming_789012']
+)
+```
+
+#### Get Replies to Sent Messages
+
+```ruby
+# Get all replies to a specific sent message
+replies = client.incoming.get_replies(
+  original_message_id: 'msg_123456',
+  limit: 10
+)
+
+replies.each do |reply|
+  puts "Reply from #{reply['from']}: #{reply['message']}"
+end
 ```
 
 ### Managing Sender IDs
@@ -141,7 +220,10 @@ sender_ids = client.sender_id.list_sender_ids(
 ```ruby
 response = client.webhook.configure_webhook(
   url: 'https://yourapp.com/webhooks/cellcast',
-  events: ['sms.sent', 'sms.delivered', 'sms.failed'],
+  events: [
+    'sms.sent', 'sms.delivered', 'sms.failed',
+    'sms.received', 'sms.reply'
+  ],
   secret: 'your-webhook-secret'  # optional
 )
 ```
@@ -212,6 +294,12 @@ end
 - `GET /sms/status/{id}` - Get message status
 - `GET /sms/delivery/{id}` - Get delivery report
 - `GET /sms/messages` - List sent messages
+
+### Incoming SMS Endpoints
+- `GET /sms/incoming` - List incoming messages and replies
+- `GET /sms/incoming/{id}` - Get specific incoming message
+- `POST /sms/mark-read` - Mark messages as read
+- `GET /sms/replies/{id}` - Get replies to a sent message
 
 ### Sender ID Endpoints
 - `POST /sender-id/business-name` - Register business name

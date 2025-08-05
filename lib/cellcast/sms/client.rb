@@ -21,6 +21,11 @@ module Cellcast
         @sms_api ||= SMSApi.new(self)
       end
 
+      # Access to Incoming SMS API endpoints
+      def incoming
+        @incoming_api ||= IncomingApi.new(self)
+      end
+
       # Access to Sender ID API endpoints  
       def sender_id
         @sender_id_api ||= SenderIdApi.new(self)

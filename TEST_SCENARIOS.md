@@ -91,6 +91,71 @@ This document outlines test scenarios, edge cases, and boundary tests for the Ce
 - [ ] List with negative offset (should use 0)
 - [ ] List with very large offset
 
+## Incoming SMS API Tests
+
+### List Incoming Messages - Valid Cases
+- [ ] List incoming messages with default parameters
+- [ ] List with custom limit and offset
+- [ ] Filter by date range (date_from and date_to)
+- [ ] Filter by specific sender_id
+- [ ] List only unread messages (unread_only: true)
+- [ ] List with all filters combined
+
+### List Incoming Messages - Edge Cases
+- [ ] List with limit > 100 (should use max 100)
+- [ ] List with negative offset (should use 0)
+- [ ] List with invalid date format
+- [ ] List with empty sender_id string
+- [ ] List with no incoming messages (empty response)
+
+### List Incoming Messages - Boundary Tests
+- [ ] List with limit = 1 (minimum)
+- [ ] List with limit = 100 (maximum)
+- [ ] List with very large offset
+- [ ] Date filters with same date_from and date_to
+
+### Get Incoming Message - Valid Cases
+- [ ] Get specific incoming message by ID
+- [ ] Get message with all response fields present
+- [ ] Get message with Unicode content
+
+### Get Incoming Message - Edge Cases
+- [ ] Get with nil message_id raises ValidationError
+- [ ] Get with empty message_id raises ValidationError
+- [ ] Get with non-string message_id raises ValidationError
+- [ ] Get with non-existent message_id
+
+### Mark Messages as Read - Valid Cases
+- [ ] Mark single message as read
+- [ ] Mark multiple messages as read (2-10 messages)
+- [ ] Mark maximum allowed messages as read (100)
+
+### Mark Messages as Read - Edge Cases
+- [ ] Mark with nil message_ids raises ValidationError
+- [ ] Mark with empty array raises ValidationError
+- [ ] Mark with non-array message_ids raises ValidationError
+- [ ] Mark with > 100 message_ids raises ValidationError
+- [ ] Mark with nil ID in array raises ValidationError
+- [ ] Mark with empty string ID raises ValidationError
+- [ ] Mark with non-string ID raises ValidationError
+
+### Get Replies - Valid Cases
+- [ ] Get replies to sent message with default pagination
+- [ ] Get replies with custom limit and offset
+- [ ] Get replies for message with no replies (empty response)
+- [ ] Get replies for message with multiple replies
+
+### Get Replies - Edge Cases
+- [ ] Get replies with nil original_message_id raises ValidationError
+- [ ] Get replies with empty original_message_id raises ValidationError
+- [ ] Get replies with invalid limit/offset
+- [ ] Get replies for non-existent message
+
+### Get Replies - Boundary Tests
+- [ ] Get replies with limit = 1 (minimum)
+- [ ] Get replies with limit = 100 (maximum)
+- [ ] Get replies with very large offset
+
 ## Sender ID API Tests
 
 ### Business Name Registration - Valid Cases
@@ -154,6 +219,9 @@ This document outlines test scenarios, edge cases, and boundary tests for the Ce
 - [ ] Configure webhook with HTTP URL
 - [ ] Configure webhook with HTTPS URL
 - [ ] Configure webhook with valid events array
+- [ ] Configure webhook with SMS outbound events ('sms.sent', 'sms.delivered', 'sms.failed')
+- [ ] Configure webhook with SMS incoming events ('sms.received', 'sms.reply')
+- [ ] Configure webhook with all SMS events combined
 - [ ] Configure webhook with optional secret
 - [ ] Get current webhook configuration
 - [ ] Delete webhook configuration
@@ -171,7 +239,8 @@ This document outlines test scenarios, edge cases, and boundary tests for the Ce
 
 ### Webhook Testing and Logs - Valid Cases
 - [ ] Test webhook with default event type
-- [ ] Test webhook with each valid event type
+- [ ] Test webhook with each valid SMS outbound event type
+- [ ] Test webhook with each valid SMS incoming event type ('sms.received', 'sms.reply')
 - [ ] Get delivery logs with default pagination
 - [ ] Get delivery logs with custom pagination
 - [ ] Retry failed delivery with valid delivery ID

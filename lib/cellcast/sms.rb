@@ -3,6 +3,7 @@
 require_relative "sms/version"
 require_relative "sms/client"
 require_relative "sms/sms_api"
+require_relative "sms/incoming_api"
 require_relative "sms/sender_id_api"
 require_relative "sms/token_api"
 require_relative "sms/webhook_api"

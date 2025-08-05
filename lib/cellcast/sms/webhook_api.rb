@@ -90,6 +90,7 @@ module Cellcast
         
         valid_events = %w[
           sms.sent sms.delivered sms.failed
+          sms.received sms.reply
           sender_id.approved sender_id.rejected
           token.expired
         ]
@@ -101,7 +102,7 @@ module Cellcast
       end
 
       def validate_event_type(event_type)
-        valid_types = %w[test sms.sent sms.delivered sms.failed]
+        valid_types = %w[test sms.sent sms.delivered sms.failed sms.received sms.reply]
         unless valid_types.include?(event_type)
           raise ValidationError, "Invalid event type: #{event_type}"
         end
