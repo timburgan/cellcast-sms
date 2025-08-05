@@ -11,6 +11,13 @@
 # rspec failure tracking
 .rspec_status
 
+# Test artifacts
+/test/reports/
+.minitest_cache/
+
+# Bundler
+Gemfile.lock
+
 # Ignore bundler config
 /.bundle
 
@@ -43,3 +50,13 @@ node_modules/
 
 # Ignore application configuration
 /config/application.yml
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

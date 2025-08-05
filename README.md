@@ -49,7 +49,55 @@ client = Cellcast.sms(
 ### Quick Example
 
 ```ruby
-# Send an SMS
+require 'cellcast'
+
+# Create client with your API key
+client = Cellcast.sms(api_key: 'your-api-key')
+
+# Simple message sending with response objects
+response = client.quick_send(
+  to: '+1234567890',
+  message: 'Hello from Cellcast!',
+  from: 'YourBrand'
+)
+
+puts "Message sent! ID: #{response.message_id}" if response.success?
+
+# Check delivery status easily
+if client.delivered?(message_id: response.message_id)
+  puts "Message delivered successfully!"
+end
+
+# Broadcast to multiple recipients
+broadcast_response = client.broadcast(
+  to: ['+1234567890', '+0987654321'],
+  message: 'Important announcement!'
+)
+
+puts "Sent to #{broadcast_response.successful_count} recipients"
+puts "Total cost: $#{broadcast_response.total_cost}"
+
+# Handle incoming messages with structured objects
+unread = client.unread_messages
+unread.items.each do |message|
+  puts "From #{message.from}: #{message.message}"
+  
+  # Check if it's a reply to a previous message
+  if message.is_reply?
+    puts "This is a reply to message: #{message.original_message_id}"
+  end
+end
+
+# Simple webhook setup for all SMS events
+client.setup_webhook(url: 'https://yourapp.com/webhooks')
+```
+
+### Advanced Usage
+
+If you need full control, all the lower-level APIs are still available:
+
+```ruby
+# Send an SMS with the detailed API
 response = client.sms.send_message(
   to: '+1234567890',
   message: 'Hello from Cellcast!',
@@ -319,6 +367,57 @@ client = Cellcast.sms(
 - **Rate Limiting**: Intelligent backoff with server-provided retry times
 - **Server Errors**: Automatic retry for 5xx server errors
 - **Validation**: Input validation before API requests
+
+### Improved Developer Experience
+
+The gem provides two levels of API access:
+
+**Convenience Methods (Recommended for most use cases):**
+```ruby
+# Simple operations with structured responses
+response = client.quick_send(to: '+1234567890', message: 'Hello!', from: 'Brand')
+delivered = client.delivered?(message_id: response.message_id)
+unread = client.unread_messages(limit: 10)
+client.setup_webhook(url: 'https://yourapp.com/webhook')
+```
+
+**Full API Access (For advanced customization):**
+```ruby
+# Complete control over all parameters
+response = client.sms.send_message(to: '+1234567890', message: 'Hello!', sender_id: 'Brand')
+status = client.sms.get_status(message_id: response['message_id'])
+incoming = client.incoming.list_incoming(limit: 10, unread_only: true)
+```
+
+### Response Objects
+
+Instead of raw hashes, the gem now provides structured response objects:
+
+```ruby
+response = client.quick_send(to: '+1234567890', message: 'Hello!')
+
+# Structured access to response data
+puts response.message_id    # Easy access to message ID
+puts response.status        # Message status
+puts response.cost          # Cost in credits
+puts response.success?      # Boolean success check
+
+# Broadcast responses provide aggregated data
+broadcast = client.broadcast(to: ['+1111111111', '+2222222222'], message: 'News')
+puts broadcast.successful_count  # Number of successful sends
+puts broadcast.total_cost        # Total cost for all messages
+```
+
+### Comprehensive Testing
+
+The gem includes extensive test coverage for:
+- Error handling and retry behavior
+- Response object functionality  
+- Convenience method operations
+- Configuration validation
+- Network failure scenarios
+
+Run tests with: `rake test`
 
 ## Available Error Classes
 

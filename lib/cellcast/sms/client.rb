@@ -10,6 +10,8 @@ module Cellcast
     # Main client class for Cellcast SMS API
     # Following Sandi Metz rules: small class with single responsibility
     class Client
+      include ConvenienceMethods
+      
       attr_reader :api_key, :base_url, :config
 
       def initialize(api_key:, base_url: "https://api.cellcast.com", config: nil)
@@ -55,7 +57,9 @@ module Cellcast
       private
 
       def validate_api_key(key)
-        raise ValidationError, "API key cannot be nil or empty" if key.nil? || key.strip.empty?
+        if key.nil? || key.strip.empty?
+          raise ValidationError, "API key cannot be nil or empty. Get your API key from https://dashboard.cellcast.com/api-keys"
+        end
         key.strip
       end
 
@@ -112,19 +116,24 @@ module Cellcast
         when 200..299
           parse_response_body(response.body)
         when 401
-          raise AuthenticationError, "Invalid API key or unauthorized access"
+          raise AuthenticationError, "Invalid API key or unauthorized access. Please check your API key at https://dashboard.cellcast.com/api-keys"
         when 429
           retry_after = extract_retry_after(response)
-          raise RateLimitError.new("Rate limit exceeded", 
+          message = "Rate limit exceeded. "
+          message += retry_after ? "Retry after #{retry_after} seconds." : "Please wait before making more requests."
+          raise RateLimitError.new(message, 
                                   status_code: response.code.to_i,
                                   response_body: response.body,
                                   retry_after: retry_after)
         when 400..499
-          raise APIError.new("Client error: #{response.message}",
+          error_details = parse_error_details(response.body)
+          message = "Client error: #{response.message}"
+          message += ". #{error_details}" if error_details
+          raise APIError.new(message,
                             status_code: response.code.to_i,
                             response_body: response.body)
         when 500..599
-          raise ServerError.new("Server error: #{response.message}",
+          raise ServerError.new("Server error: #{response.message}. Please try again later or contact support if the issue persists.",
                                status_code: response.code.to_i,
                                response_body: response.body)
         else
@@ -146,6 +155,15 @@ module Cellcast
         JSON.parse(body)
       rescue JSON::ParserError
         { "raw_response" => body }
+      end
+
+      def parse_error_details(body)
+        return nil if body.nil? || body.strip.empty?
+        
+        parsed = JSON.parse(body)
+        parsed['error'] || parsed['message'] || parsed['detail']
+      rescue JSON::ParserError
+        nil
       end
     end
   end

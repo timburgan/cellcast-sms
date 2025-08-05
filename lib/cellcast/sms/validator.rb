@@ -7,15 +7,25 @@ module Cellcast
     module Validator
       # Validate phone number format and content
       def validate_phone_number(phone)
-        raise ValidationError, "Phone number cannot be nil or empty" if phone.nil? || phone.strip.empty?
-        raise ValidationError, "Phone number must be a string" unless phone.is_a?(String)
+        if phone.nil? || phone.strip.empty?
+          raise ValidationError, "Phone number cannot be nil or empty. Please provide a valid phone number in international format (e.g., +1234567890)"
+        end
+        unless phone.is_a?(String)
+          raise ValidationError, "Phone number must be a string, got #{phone.class}"
+        end
       end
 
       # Validate SMS message content and length
       def validate_message(message)
-        raise ValidationError, "Message cannot be nil or empty" if message.nil? || message.strip.empty?
-        raise ValidationError, "Message must be a string" unless message.is_a?(String)
-        raise ValidationError, "Message too long (max 1600 characters)" if message.length > 1600
+        if message.nil? || message.strip.empty?
+          raise ValidationError, "Message cannot be nil or empty. Please provide message content."
+        end
+        unless message.is_a?(String)
+          raise ValidationError, "Message must be a string, got #{message.class}"
+        end
+        if message.length > 1600
+          raise ValidationError, "Message too long (#{message.length}/1600 characters). Consider splitting into multiple messages."
+        end
       end
 
       # Validate message ID format
@@ -44,14 +54,20 @@ module Cellcast
 
       # Validate URL format
       def validate_url(url)
-        raise ValidationError, "URL cannot be nil or empty" if url.nil? || url.strip.empty?
-        raise ValidationError, "URL must be a string" unless url.is_a?(String)
+        if url.nil? || url.strip.empty?
+          raise ValidationError, "URL cannot be nil or empty. Please provide a valid HTTP or HTTPS URL."
+        end
+        unless url.is_a?(String)
+          raise ValidationError, "URL must be a string, got #{url.class}"
+        end
         
         begin
           uri = URI.parse(url)
-          raise ValidationError, "URL must be HTTP or HTTPS" unless %w[http https].include?(uri.scheme)
-        rescue URI::InvalidURIError
-          raise ValidationError, "Invalid URL format"
+          unless %w[http https].include?(uri.scheme)
+            raise ValidationError, "URL must be HTTP or HTTPS, got #{uri.scheme}. Example: https://yourapp.com/webhooks"
+          end
+        rescue URI::InvalidURIError => e
+          raise ValidationError, "Invalid URL format: #{e.message}. Please provide a valid URL like https://yourapp.com/webhooks"
         end
       end
 
