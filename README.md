@@ -1,52 +1,31 @@
 # Cellcast SMS
 
-A Ruby gem for interacting with the Cellcast API SMS endpoints. This gem provides a clean, simple interface for sending SMS messages, managing sender IDs, and configuring webhooks.
+A Ruby gem for the Cellcast API with complete bidirectional SMS support. Send messages, receive replies, and manage conversations with a simple, developer-friendly interface.
 
 ## Features
 
-- Send individual and bulk SMS messages
-- Manage sender IDs (business names and custom numbers)
-- **Handle incoming messages and replies** - New!
-- Configure and manage webhooks for real-time notifications
-- Token verification and usage tracking
-- Comprehensive error handling
-- Minimal dependencies (uses only Ruby standard library)
-- Ruby 3.3+ support
+- **Send SMS**: Individual messages and bulk broadcasts
+- **Receive SMS**: Incoming messages and replies with real-time webhooks
+- **Zero Configuration**: Sensible defaults with automatic retries and error handling
+- **Developer Friendly**: Structured response objects and helpful error messages  
+- **Ruby 3.3+**: Uses only Ruby standard library, no external dependencies
 
-## Installation
+## Quick Start
 
-Add this line to your application's Gemfile:
+### Installation
+
+Add to your Gemfile:
 
 ```ruby
 gem 'cellcast-sms'
 ```
 
-And then execute:
-
-    $ bundle install
-
-Or install it yourself as:
-
-    $ gem install cellcast-sms
-
-## Usage
-
-### Basic Setup
-
-```ruby
-require 'cellcast'
-
-# Create a client
-client = Cellcast.sms(api_key: 'your-api-key')
-
-# Or with custom base URL
-client = Cellcast.sms(
-  api_key: 'your-api-key',
-  base_url: 'https://api.cellcast.com'
-)
+Then run:
+```bash
+bundle install
 ```
 
-### Quick Example
+### Basic Usage
 
 ```ruby
 require 'cellcast'
@@ -54,7 +33,7 @@ require 'cellcast'
 # Create client with your API key
 client = Cellcast.sms(api_key: 'your-api-key')
 
-# Simple message sending with response objects
+# Send a message
 response = client.quick_send(
   to: '+1234567890',
   message: 'Hello from Cellcast!',
@@ -63,425 +42,87 @@ response = client.quick_send(
 
 puts "Message sent! ID: #{response.message_id}" if response.success?
 
-# Check delivery status easily
+# Check delivery status
 if client.delivered?(message_id: response.message_id)
   puts "Message delivered successfully!"
 end
 
-# Broadcast to multiple recipients
-broadcast_response = client.broadcast(
+# Send to multiple recipients
+broadcast = client.broadcast(
   to: ['+1234567890', '+0987654321'],
   message: 'Important announcement!'
 )
 
-puts "Sent to #{broadcast_response.successful_count} recipients"
-puts "Total cost: $#{broadcast_response.total_cost}"
+puts "Sent to #{broadcast.successful_count} recipients"
+puts "Total cost: $#{broadcast.total_cost}"
 
-# Handle incoming messages with structured objects
+# Handle incoming messages and replies
 unread = client.unread_messages
 unread.items.each do |message|
   puts "From #{message.from}: #{message.message}"
   
-  # Check if it's a reply to a previous message
   if message.is_reply?
     puts "This is a reply to message: #{message.original_message_id}"
   end
 end
 
-# Simple webhook setup for all SMS events
+# Set up webhook for real-time notifications
 client.setup_webhook(url: 'https://yourapp.com/webhooks')
-```
-
-### Advanced Usage
-
-If you need full control, all the lower-level APIs are still available:
-
-```ruby
-# Send an SMS with the detailed API
-response = client.sms.send_message(
-  to: '+1234567890',
-  message: 'Hello from Cellcast!',
-  sender_id: 'YourBrand'
-)
-
-# Check for incoming messages and replies
-incoming = client.incoming.list_incoming(unread_only: true)
-incoming.each do |message|
-  puts "Received from #{message['from']}: #{message['message']}"
-end
-
-# Configure webhook for real-time notifications
-client.webhook.configure_webhook(
-  url: 'https://yourapp.com/webhooks/cellcast',
-  events: ['sms.sent', 'sms.delivered', 'sms.received', 'sms.reply']
-)
-```
-
-### Sending SMS Messages
-
-#### Send a Single Message
-
-```ruby
-response = client.sms.send_message(
-  to: '+1234567890',
-  message: 'Hello from Cellcast!',
-  sender_id: 'YourBrand'  # optional
-)
-
-puts response['message_id']
-```
-
-#### Send Bulk Messages
-
-```ruby
-messages = [
-  { to: '+1234567890', message: 'Hello User 1!' },
-  { to: '+0987654321', message: 'Hello User 2!', sender_id: 'CustomID' }
-]
-
-response = client.sms.send_bulk(messages: messages)
-puts response['batch_id']
-```
-
-#### Check Message Status
-
-```ruby
-status = client.sms.get_status(message_id: 'msg_123456')
-puts status['status']  # 'sent', 'delivered', 'failed', etc.
-
-# Get detailed delivery report
-report = client.sms.get_delivery_report(message_id: 'msg_123456')
-```
-
-#### List Sent Messages
-
-```ruby
-messages = client.sms.list_messages(
-  limit: 50,
-  offset: 0,
-  date_from: '2024-01-01',
-  date_to: '2024-01-31'
-)
-```
-
-### Handling Incoming Messages & Replies
-
-#### List Incoming Messages
-
-```ruby
-# Get all incoming messages
-incoming = client.incoming.list_incoming(
-  limit: 50,
-  offset: 0,
-  unread_only: true
-)
-
-# Filter by date range and sender ID  
-incoming = client.incoming.list_incoming(
-  date_from: '2024-01-01',
-  date_to: '2024-01-31',
-  sender_id: 'YourBrand'
-)
-```
-
-#### Get Specific Incoming Message
-
-```ruby
-message = client.incoming.get_incoming_message(message_id: 'incoming_123456')
-puts message['from']  # Sender's phone number
-puts message['message']  # Message content
-puts message['received_at']  # Timestamp
-```
-
-#### Mark Messages as Read
-
-```ruby
-# Mark single message as read
-client.incoming.mark_as_read(message_ids: ['incoming_123456'])
-
-# Mark multiple messages as read
-client.incoming.mark_as_read(
-  message_ids: ['incoming_123456', 'incoming_789012']
-)
-```
-
-#### Get Replies to Sent Messages
-
-```ruby
-# Get all replies to a specific sent message
-replies = client.incoming.get_replies(
-  original_message_id: 'msg_123456',
-  limit: 10
-)
-
-replies.each do |reply|
-  puts "Reply from #{reply['from']}: #{reply['message']}"
-end
-```
-
-### Managing Sender IDs
-
-#### Register Business Name
-
-```ruby
-response = client.sender_id.register_business_name(
-  business_name: 'Your Company',
-  business_registration: 'REG123456',
-  contact_info: {
-    email: 'contact@yourcompany.com',
-    phone: '+1234567890'
-  }
-)
-```
-
-#### Register Custom Number
-
-```ruby
-response = client.sender_id.register_custom_number(
-  phone_number: '+1234567890',
-  purpose: 'Customer notifications'
-)
-```
-
-#### Verify Custom Number
-
-```ruby
-response = client.sender_id.verify_custom_number(
-  phone_number: '+1234567890',
-  verification_code: '123456'
-)
-```
-
-#### List Sender IDs
-
-```ruby
-sender_ids = client.sender_id.list_sender_ids(
-  type: 'business_name',  # or 'custom_number'
-  status: 'approved'
-)
-```
-
-### Webhook Management
-
-#### Configure Webhook
-
-```ruby
-response = client.webhook.configure_webhook(
-  url: 'https://yourapp.com/webhooks/cellcast',
-  events: [
-    'sms.sent', 'sms.delivered', 'sms.failed',
-    'sms.received', 'sms.reply'
-  ],
-  secret: 'your-webhook-secret'  # optional
-)
-```
-
-#### Test Webhook
-
-```ruby
-response = client.webhook.test_webhook(event_type: 'test')
-```
-
-#### Get Webhook Logs
-
-```ruby
-logs = client.webhook.get_delivery_logs(limit: 100, offset: 0)
-```
-
-### Token Management
-
-#### Verify Token
-
-```ruby
-token_info = client.token.verify_token
-puts token_info['valid']
-```
-
-#### Get Usage Statistics
-
-```ruby
-stats = client.token.get_usage_stats(period: 'monthly')
-puts stats['messages_sent']
 ```
 
 ## Error Handling
 
-The gem provides specific error classes for different types of failures and includes comprehensive retry logic with exponential backoff:
+The gem includes automatic retries and helpful error messages:
 
 ```ruby
 begin
-  client.sms.send_message(to: '+1234567890', message: 'Hello!')
-rescue Cellcast::SMS::AuthenticationError => e
-  puts "Authentication failed: #{e.message}"
-rescue Cellcast::SMS::RateLimitError => e
-  puts "Rate limit exceeded: #{e.message}"
-  puts "Retry after: #{e.retry_after} seconds" if e.retry_after
-rescue Cellcast::SMS::NetworkError => e
-  puts "Network error: #{e.message}"
-rescue Cellcast::SMS::TimeoutError => e
-  puts "Request timed out: #{e.message}"
+  response = client.quick_send(to: '+1234567890', message: 'Hello!')
 rescue Cellcast::SMS::ValidationError => e
   puts "Validation error: #{e.message}"
-rescue Cellcast::SMS::APIError => e
-  puts "API error: #{e.message}"
-  puts "Status code: #{e.status_code}"
-  puts "Response: #{e.response_body}"
+  # Example: "Phone number must be in international format (e.g., +1234567890)"
+rescue Cellcast::SMS::RateLimitError => e
+  puts "Rate limited. Retry after: #{e.retry_after} seconds"
+rescue Cellcast::SMS::NetworkError => e
+  puts "Network error: #{e.message}"
+  # Gem automatically retried 3 times with exponential backoff
 end
 ```
 
-## Configuration
+## Advanced Usage
 
-The gem supports extensive configuration for timeouts, retries, and backoff strategies:
+For complete API documentation, advanced examples, architecture details, and sequence diagrams, see the [**Developer Guide**](DEVELOPER.md).
+
+The gem provides two levels of access:
+
+**Convenience Methods** (shown above) - Perfect for common use cases  
+**Full API Access** - Complete control over all parameters:
 
 ```ruby
-# Create a custom configuration
-config = Cellcast.configure do |c|
-  c.open_timeout = 30        # Connection timeout (seconds)
-  c.read_timeout = 60        # Read timeout (seconds)  
-  c.max_retries = 3          # Maximum retry attempts
-  c.base_delay = 1.0         # Base delay for exponential backoff
-  c.max_delay = 32.0         # Maximum delay between retries
-  c.backoff_multiplier = 2.0 # Exponential backoff multiplier
-  c.retry_on_rate_limit = true # Retry on rate limit errors
-  c.logger = Logger.new(STDOUT) # Optional logger for debugging
-end
+# Direct API access for advanced customization
+response = client.sms.send_message(
+  to: '+1234567890',
+  message: 'Hello!',
+  sender_id: 'YourBrand'
+)
 
-# Use custom configuration with client
-client = Cellcast.sms(
-  api_key: 'your-api-key',
-  config: config
+incoming = client.incoming.list_incoming(unread_only: true)
+
+client.webhook.configure_webhook(
+  url: 'https://yourapp.com/webhooks',
+  events: ['sms.sent', 'sms.delivered', 'sms.received', 'sms.reply']
 )
 ```
 
-## Robust Error Handling Features
+## Documentation
 
-### Automatic Retries
-- **Exponential Backoff**: Intelligent retry logic with configurable delays
-- **Rate Limit Handling**: Automatic retry with `Retry-After` header support
-- **Network Resilience**: Retries for transient network errors and timeouts
-- **Configurable Strategy**: Customize retry attempts, delays, and conditions
-
-### Comprehensive Error Coverage
-- **Network Errors**: Connection failures, DNS resolution, SSL errors
-- **Timeout Handling**: Separate handling for connection and read timeouts
-- **Rate Limiting**: Intelligent backoff with server-provided retry times
-- **Server Errors**: Automatic retry for 5xx server errors
-- **Validation**: Input validation before API requests
-
-### Improved Developer Experience
-
-The gem provides two levels of API access:
-
-**Convenience Methods (Recommended for most use cases):**
-```ruby
-# Simple operations with structured responses
-response = client.quick_send(to: '+1234567890', message: 'Hello!', from: 'Brand')
-delivered = client.delivered?(message_id: response.message_id)
-unread = client.unread_messages(limit: 10)
-client.setup_webhook(url: 'https://yourapp.com/webhook')
-```
-
-**Full API Access (For advanced customization):**
-```ruby
-# Complete control over all parameters
-response = client.sms.send_message(to: '+1234567890', message: 'Hello!', sender_id: 'Brand')
-status = client.sms.get_status(message_id: response['message_id'])
-incoming = client.incoming.list_incoming(limit: 10, unread_only: true)
-```
-
-### Response Objects
-
-Instead of raw hashes, the gem now provides structured response objects:
-
-```ruby
-response = client.quick_send(to: '+1234567890', message: 'Hello!')
-
-# Structured access to response data
-puts response.message_id    # Easy access to message ID
-puts response.status        # Message status
-puts response.cost          # Cost in credits
-puts response.success?      # Boolean success check
-
-# Broadcast responses provide aggregated data
-broadcast = client.broadcast(to: ['+1111111111', '+2222222222'], message: 'News')
-puts broadcast.successful_count  # Number of successful sends
-puts broadcast.total_cost        # Total cost for all messages
-```
-
-### Comprehensive Testing
-
-The gem includes extensive test coverage for:
-- Error handling and retry behavior
-- Response object functionality  
-- Convenience method operations
-- Configuration validation
-- Network failure scenarios
-
-Run tests with: `rake test`
-
-## Available Error Classes
-
-- `Cellcast::SMS::Error` - Base error class
-- `Cellcast::SMS::AuthenticationError` - Invalid API key or unauthorized access
-- `Cellcast::SMS::ValidationError` - Invalid parameters or data
-- `Cellcast::SMS::APIError` - General API errors (4xx, 5xx responses)
-- `Cellcast::SMS::RateLimitError` - Rate limit exceeded (429 responses) with retry-after support
-- `Cellcast::SMS::ServerError` - Server errors (5xx responses)
-- `Cellcast::SMS::NetworkError` - Network-related errors (connection failures, DNS issues)
-- `Cellcast::SMS::TimeoutError` - Request timeout errors
-- `Cellcast::SMS::ConnectionError` - Connection establishment failures
-- `Cellcast::SMS::SSLError` - SSL/TLS related errors
-
-## Supported API Endpoints
-
-### SMS Endpoints
-- `POST /sms/send` - Send single SMS
-- `POST /sms/bulk` - Send bulk SMS
-- `GET /sms/status/{id}` - Get message status
-- `GET /sms/delivery/{id}` - Get delivery report
-- `GET /sms/messages` - List sent messages
-
-### Incoming SMS Endpoints
-- `GET /sms/incoming` - List incoming messages and replies
-- `GET /sms/incoming/{id}` - Get specific incoming message
-- `POST /sms/mark-read` - Mark messages as read
-- `GET /sms/replies/{id}` - Get replies to a sent message
-
-### Sender ID Endpoints
-- `POST /sender-id/business-name` - Register business name
-- `GET /sender-id/business-name/{id}` - Get business name status
-- `POST /sender-id/custom-number` - Register custom number
-- `POST /sender-id/verify-custom-number` - Verify custom number
-- `GET /sender-id/custom-number/{number}` - Get custom number status
-- `GET /sender-id/list` - List sender IDs
-
-### Token Endpoints
-- `GET /auth/verify-token` - Verify API token
-- `GET /auth/token-info` - Get token information
-- `POST /auth/refresh-token` - Refresh token
-- `GET /auth/usage-stats` - Get usage statistics
-
-### Webhook Endpoints
-- `POST /webhooks/configure` - Configure webhook
-- `GET /webhooks/config` - Get webhook configuration
-- `POST /webhooks/test` - Test webhook
-- `DELETE /webhooks/config` - Delete webhook
-- `GET /webhooks/logs` - Get delivery logs
-- `POST /webhooks/retry` - Retry failed delivery
-
-## Development Philosophy
-
-This gem follows Sandi Metz rules for object-oriented design:
-
-1. Classes should be no longer than 100 lines
-2. Methods should be no longer than 5 lines
-3. Methods should accept no more than 4 parameters
-4. Controllers should only instantiate one object
+- **[Developer Guide](DEVELOPER.md)** - Complete documentation with examples, API reference, and architecture diagrams
+- **[Test Scenarios](TEST_SCENARIOS.md)** - Comprehensive testing scenarios and edge cases
+- **[Changelog](CHANGELOG.md)** - Version history and changes
 
 ## Requirements
 
 - Ruby 3.3.0 or higher
-- No external dependencies (uses only Ruby standard library)
+- No external dependencies
 
 ## Contributing
 
@@ -489,4 +130,4 @@ Bug reports and pull requests are welcome on GitHub at https://github.com/timbur
 
 ## License
 
-The gem is available as open source under the terms of the MIT License.
+Available under the [MIT License](LICENSE.txt).
