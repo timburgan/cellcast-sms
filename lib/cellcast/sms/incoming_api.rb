@@ -5,6 +5,8 @@ module Cellcast
     # Incoming SMS API endpoints implementation
     # Following Sandi Metz rules: small focused class for incoming message management
     class IncomingApi
+      include Validator
+
       def initialize(client)
         @client = client
       end
@@ -59,27 +61,6 @@ module Cellcast
       end
 
       private
-
-      def validate_message_id(message_id)
-        raise ValidationError, "Message ID cannot be nil or empty" if message_id.nil? || message_id.strip.empty?
-        raise ValidationError, "Message ID must be a string" unless message_id.is_a?(String)
-      end
-
-      def validate_message_ids(message_ids)
-        raise ValidationError, "Message IDs must be an array" unless message_ids.is_a?(Array)
-        raise ValidationError, "Message IDs array cannot be empty" if message_ids.empty?
-        raise ValidationError, "Too many message IDs (max 100)" if message_ids.length > 100
-        
-        message_ids.each_with_index do |id, index|
-          raise ValidationError, "Message ID at index #{index} cannot be nil or empty" if id.nil? || id.strip.empty?
-          raise ValidationError, "Message ID at index #{index} must be a string" unless id.is_a?(String)
-        end
-      end
-
-      def validate_pagination_params(limit, offset)
-        raise ValidationError, "Limit must be between 1 and 100" unless (1..100).cover?(limit)
-        raise ValidationError, "Offset must be non-negative" unless offset >= 0
-      end
 
       def build_list_params(limit, offset, date_from, date_to, sender_id, unread_only)
         params = []

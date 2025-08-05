@@ -3,17 +3,20 @@
 require "net/http"
 require "json"
 require "uri"
+require "openssl"
 
 module Cellcast
   module SMS
     # Main client class for Cellcast SMS API
     # Following Sandi Metz rules: small class with single responsibility
     class Client
-      attr_reader :api_key, :base_url
+      attr_reader :api_key, :base_url, :config
 
-      def initialize(api_key:, base_url: "https://api.cellcast.com")
+      def initialize(api_key:, base_url: "https://api.cellcast.com", config: nil)
         @api_key = validate_api_key(api_key)
         @base_url = base_url.chomp("/")
+        @config = config || Configuration.new
+        @config.validate!
       end
 
       # Access to SMS API endpoints
@@ -41,15 +44,12 @@ module Cellcast
         @webhook_api ||= WebhookApi.new(self)
       end
 
-      # Make HTTP requests to the API
+      # Make HTTP requests to the API with retry logic
       # Following Sandi Metz rule: methods should be small
       def request(method:, path:, body: nil, headers: {})
-        uri = build_uri(path)
-        http = create_http_client(uri)
-        request = build_request(method, uri, body, headers)
-        
-        response = http.request(request)
-        handle_response(response)
+        RetryHandler.with_retries(config: config, logger: config.logger) do
+          execute_request(method, path, body, headers)
+        end
       end
 
       private
@@ -59,6 +59,23 @@ module Cellcast
         key.strip
       end
 
+      def execute_request(method, path, body, headers)
+        uri = build_uri(path)
+        http = create_http_client(uri)
+        request = build_request(method, uri, body, headers)
+        
+        response = http.request(request)
+        handle_response(response)
+      rescue Net::OpenTimeout, Net::ReadTimeout => e
+        raise TimeoutError, "Request timed out: #{e.message}"
+      rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
+        raise ConnectionError, "Connection failed: #{e.message}"
+      rescue OpenSSL::SSL::SSLError => e
+        raise SSLError, "SSL error: #{e.message}"
+      rescue => e
+        raise NetworkError, "Network error: #{e.message}"
+      end
+
       def build_uri(path)
         URI("#{base_url}/#{path.gsub(/^\//, '')}")
       end
@@ -66,8 +83,8 @@ module Cellcast
       def create_http_client(uri)
         http = Net::HTTP.new(uri.host, uri.port)
         http.use_ssl = uri.scheme == "https"
-        http.open_timeout = 30
-        http.read_timeout = 60
+        http.open_timeout = config.open_timeout
+        http.read_timeout = config.read_timeout
         http
       end
 
@@ -97,9 +114,11 @@ module Cellcast
         when 401
           raise AuthenticationError, "Invalid API key or unauthorized access"
         when 429
+          retry_after = extract_retry_after(response)
           raise RateLimitError.new("Rate limit exceeded", 
                                   status_code: response.code.to_i,
-                                  response_body: response.body)
+                                  response_body: response.body,
+                                  retry_after: retry_after)
         when 400..499
           raise APIError.new("Client error: #{response.message}",
                             status_code: response.code.to_i,
@@ -113,6 +132,13 @@ module Cellcast
                             status_code: response.code.to_i,
                             response_body: response.body)
         end
+      end
+
+      def extract_retry_after(response)
+        retry_after_header = response["Retry-After"]
+        return nil unless retry_after_header
+        
+        retry_after_header.to_i if retry_after_header.match?(/^\d+$/)
       end
 
       def parse_response_body(body)

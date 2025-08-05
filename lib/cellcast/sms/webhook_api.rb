@@ -5,6 +5,8 @@ module Cellcast
     # Webhook API endpoints implementation
     # Following Sandi Metz rules: small focused class
     class WebhookApi
+      include Validator
+
       def initialize(client)
         @client = client
       end
@@ -15,7 +17,7 @@ module Cellcast
       # @param secret [String, nil] Optional webhook secret for verification
       # @return [Hash] API response
       def configure_webhook(url:, events:, secret: nil)
-        validate_webhook_url(url)
+        validate_url(url)
         validate_events(events)
 
         body = {
@@ -72,45 +74,11 @@ module Cellcast
 
       private
 
-      def validate_webhook_url(url)
-        raise ValidationError, "Webhook URL cannot be nil or empty" if url.nil? || url.strip.empty?
-        raise ValidationError, "Webhook URL must be a string" unless url.is_a?(String)
-        
-        begin
-          uri = URI.parse(url)
-          raise ValidationError, "Webhook URL must be HTTP or HTTPS" unless %w[http https].include?(uri.scheme)
-        rescue URI::InvalidURIError
-          raise ValidationError, "Invalid webhook URL format"
-        end
-      end
-
-      def validate_events(events)
-        raise ValidationError, "Events must be an array" unless events.is_a?(Array)
-        raise ValidationError, "Events array cannot be empty" if events.empty?
-        
-        valid_events = %w[
-          sms.sent sms.delivered sms.failed
-          sms.received sms.reply
-          sender_id.approved sender_id.rejected
-          token.expired
-        ]
-        
-        invalid_events = events - valid_events
-        unless invalid_events.empty?
-          raise ValidationError, "Invalid events: #{invalid_events.join(', ')}"
-        end
-      end
-
       def validate_event_type(event_type)
         valid_types = %w[test sms.sent sms.delivered sms.failed sms.received sms.reply]
         unless valid_types.include?(event_type)
           raise ValidationError, "Invalid event type: #{event_type}"
         end
-      end
-
-      def validate_pagination_params(limit, offset)
-        raise ValidationError, "Limit must be between 1 and 100" unless (1..100).cover?(limit)
-        raise ValidationError, "Offset must be non-negative" unless offset >= 0
       end
 
       def validate_delivery_id(delivery_id)

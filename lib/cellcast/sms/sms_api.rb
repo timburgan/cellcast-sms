@@ -5,6 +5,8 @@ module Cellcast
     # SMS API endpoints implementation
     # Following Sandi Metz rules: small class with focused responsibility
     class SMSApi
+      include Validator
+
       def initialize(client)
         @client = client
       end
@@ -65,21 +67,6 @@ module Cellcast
       end
 
       private
-
-      def validate_phone_number(phone)
-        raise ValidationError, "Phone number cannot be nil or empty" if phone.nil? || phone.strip.empty?
-        raise ValidationError, "Phone number must be a string" unless phone.is_a?(String)
-      end
-
-      def validate_message(message)
-        raise ValidationError, "Message cannot be nil or empty" if message.nil? || message.strip.empty?
-        raise ValidationError, "Message must be a string" unless message.is_a?(String)
-        raise ValidationError, "Message too long (max 1600 characters)" if message.length > 1600
-      end
-
-      def validate_message_id(message_id)
-        raise ValidationError, "Message ID cannot be nil or empty" if message_id.nil? || message_id.strip.empty?
-      end
 
       def validate_bulk_messages(messages)
         raise ValidationError, "Messages must be an array" unless messages.is_a?(Array)

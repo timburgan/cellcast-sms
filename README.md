@@ -258,7 +258,7 @@ puts stats['messages_sent']
 
 ## Error Handling
 
-The gem provides specific error classes for different types of failures:
+The gem provides specific error classes for different types of failures and includes comprehensive retry logic with exponential backoff:
 
 ```ruby
 begin
@@ -267,7 +267,11 @@ rescue Cellcast::SMS::AuthenticationError => e
   puts "Authentication failed: #{e.message}"
 rescue Cellcast::SMS::RateLimitError => e
   puts "Rate limit exceeded: #{e.message}"
-  puts "Status code: #{e.status_code}"
+  puts "Retry after: #{e.retry_after} seconds" if e.retry_after
+rescue Cellcast::SMS::NetworkError => e
+  puts "Network error: #{e.message}"
+rescue Cellcast::SMS::TimeoutError => e
+  puts "Request timed out: #{e.message}"
 rescue Cellcast::SMS::ValidationError => e
   puts "Validation error: #{e.message}"
 rescue Cellcast::SMS::APIError => e
@@ -277,14 +281,57 @@ rescue Cellcast::SMS::APIError => e
 end
 ```
 
+## Configuration
+
+The gem supports extensive configuration for timeouts, retries, and backoff strategies:
+
+```ruby
+# Create a custom configuration
+config = Cellcast.configure do |c|
+  c.open_timeout = 30        # Connection timeout (seconds)
+  c.read_timeout = 60        # Read timeout (seconds)  
+  c.max_retries = 3          # Maximum retry attempts
+  c.base_delay = 1.0         # Base delay for exponential backoff
+  c.max_delay = 32.0         # Maximum delay between retries
+  c.backoff_multiplier = 2.0 # Exponential backoff multiplier
+  c.retry_on_rate_limit = true # Retry on rate limit errors
+  c.logger = Logger.new(STDOUT) # Optional logger for debugging
+end
+
+# Use custom configuration with client
+client = Cellcast.sms(
+  api_key: 'your-api-key',
+  config: config
+)
+```
+
+## Robust Error Handling Features
+
+### Automatic Retries
+- **Exponential Backoff**: Intelligent retry logic with configurable delays
+- **Rate Limit Handling**: Automatic retry with `Retry-After` header support
+- **Network Resilience**: Retries for transient network errors and timeouts
+- **Configurable Strategy**: Customize retry attempts, delays, and conditions
+
+### Comprehensive Error Coverage
+- **Network Errors**: Connection failures, DNS resolution, SSL errors
+- **Timeout Handling**: Separate handling for connection and read timeouts
+- **Rate Limiting**: Intelligent backoff with server-provided retry times
+- **Server Errors**: Automatic retry for 5xx server errors
+- **Validation**: Input validation before API requests
+
 ## Available Error Classes
 
 - `Cellcast::SMS::Error` - Base error class
 - `Cellcast::SMS::AuthenticationError` - Invalid API key or unauthorized access
 - `Cellcast::SMS::ValidationError` - Invalid parameters or data
 - `Cellcast::SMS::APIError` - General API errors (4xx, 5xx responses)
-- `Cellcast::SMS::RateLimitError` - Rate limit exceeded (429 responses)
+- `Cellcast::SMS::RateLimitError` - Rate limit exceeded (429 responses) with retry-after support
 - `Cellcast::SMS::ServerError` - Server errors (5xx responses)
+- `Cellcast::SMS::NetworkError` - Network-related errors (connection failures, DNS issues)
+- `Cellcast::SMS::TimeoutError` - Request timeout errors
+- `Cellcast::SMS::ConnectionError` - Connection establishment failures
+- `Cellcast::SMS::SSLError` - SSL/TLS related errors
 
 ## Supported API Endpoints
 
