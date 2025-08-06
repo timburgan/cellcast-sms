@@ -41,12 +41,12 @@ module Cellcast
           handle_mark_read(body)
         when /^sms\/replies\/(.+)$/
           handle_replies($1)
-        when /^webhook/
+        when /^webhooks?/
           handle_webhook_request(method, path, body)
         when /^sender-ids?/
-          handle_sender_id_request
-        when /^tokens?/
-          handle_token_request
+          handle_sender_id_request(method, path, body)
+        when /^auth\//
+          handle_token_request(method, path, body)
         else
           handle_generic_success
         end
@@ -178,6 +178,9 @@ module Cellcast
       end
 
       def handle_replies(original_message_id)
+        # Extract just the message ID part, ignoring query parameters
+        message_id = original_message_id.split('?').first
+        
         {
           'data' => [
             {
@@ -187,7 +190,7 @@ module Cellcast
               'message' => 'This is a reply to your message',
               'received_at' => Time.now.utc.iso8601,
               'read' => false,
-              'original_message_id' => original_message_id
+              'original_message_id' => message_id
             }
           ],
           'total' => 1,
@@ -215,35 +218,118 @@ module Cellcast
               'status' => 'delivered'
             }
           }
+        elsif path.include?('config') && method.to_s.upcase == 'GET'
+          {
+            'webhook_id' => 'sandbox_webhook_001',
+            'url' => 'https://example.com/webhook',
+            'events' => ['sms.sent', 'sms.delivered', 'sms.received'],
+            'active' => true,
+            'created_at' => Time.now.utc.iso8601
+          }
+        elsif path.include?('logs')
+          {
+            'data' => [
+              {
+                'delivery_id' => 'sandbox_delivery_001',
+                'webhook_id' => 'sandbox_webhook_001',
+                'event_type' => 'sms.delivered',
+                'status' => 'success',
+                'delivered_at' => Time.now.utc.iso8601,
+                'response_code' => 200
+              }
+            ],
+            'total' => 1,
+            'limit' => 50,
+            'offset' => 0
+          }
+        elsif path.include?('retry')
+          {
+            'retry_sent' => true,
+            'delivery_id' => body&.dig('delivery_id') || body&.dig(:delivery_id),
+            'status' => 'success'
+          }
         else
           handle_generic_success
         end
       end
 
-      def handle_sender_id_request
-        {
-          'sender_ids' => [
-            {
-              'id' => 'sandbox_sender_001',
-              'sender_id' => 'SANDBOX',
-              'status' => 'approved',
-              'created_at' => Time.now.utc.iso8601
-            }
-          ]
-        }
+      def handle_sender_id_request(method, path, body)
+        if method.to_s.upcase == 'POST' && path.include?('business-name')
+          {
+            'sender_id' => 'SANDBOX',
+            'status' => 'pending',
+            'business_name' => body&.dig('business_name') || body&.dig(:business_name),
+            'created_at' => Time.now.utc.iso8601
+          }
+        elsif method.to_s.upcase == 'POST' && path.include?('custom-number')
+          {
+            'sender_id' => body&.dig('phone_number') || body&.dig(:phone_number),
+            'status' => 'pending',
+            'verification_required' => true,
+            'created_at' => Time.now.utc.iso8601
+          }
+        elsif method.to_s.upcase == 'POST' && path.include?('verify-custom-number')
+          {
+            'sender_id' => body&.dig('phone_number') || body&.dig(:phone_number),
+            'status' => 'approved',
+            'verified_at' => Time.now.utc.iso8601
+          }
+        else
+          {
+            'sender_ids' => [
+              {
+                'id' => 'sandbox_sender_001',
+                'sender_id' => 'SANDBOX',
+                'type' => 'business_name',
+                'status' => 'approved',
+                'created_at' => Time.now.utc.iso8601
+              }
+            ],
+            'total' => 1
+          }
+        end
       end
 
-      def handle_token_request
-        {
-          'tokens' => [
-            {
-              'id' => 'sandbox_token_001',
-              'name' => 'Sandbox Token',
-              'permissions' => ['sms.send', 'sms.receive'],
-              'created_at' => Time.now.utc.iso8601
-            }
-          ]
-        }
+      def handle_token_request(method, path, body)
+        if path.include?('verify-token')
+          {
+            'valid' => true,
+            'token_id' => 'sandbox_token_001',
+            'permissions' => ['sms.send', 'sms.receive', 'webhook.manage'],
+            'expires_at' => (Time.now + 365 * 24 * 3600).utc.iso8601
+          }
+        elsif path.include?('token-info')
+          {
+            'token_id' => 'sandbox_token_001',
+            'name' => 'Sandbox Token',
+            'permissions' => ['sms.send', 'sms.receive', 'webhook.manage'],
+            'created_at' => Time.now.utc.iso8601,
+            'last_used' => Time.now.utc.iso8601
+          }
+        elsif path.include?('usage-stats')
+          {
+            'period' => 'daily',
+            'messages_sent' => 42,
+            'messages_received' => 8,
+            'total_cost' => 2.10,
+            'webhook_deliveries' => 50,
+            'api_calls' => 150
+          }
+        elsif path.include?('refresh-token')
+          {
+            'token_id' => 'sandbox_token_002',
+            'token' => 'sandbox_new_token_value',
+            'expires_at' => (Time.now + 365 * 24 * 3600).utc.iso8601
+          }
+        else
+          # Default response for verify_token (most common case)
+          {
+            'valid' => true,
+            'token_id' => 'sandbox_token_001',
+            'permissions' => ['sms.send', 'sms.receive', 'webhook.manage'],
+            'expires_at' => (Time.now + 365 * 24 * 3600).utc.iso8601
+          }
+        end
       end
 
       def handle_generic_success

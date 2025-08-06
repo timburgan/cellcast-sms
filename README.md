@@ -72,46 +72,6 @@ end
 client.setup_webhook(url: 'https://yourapp.com/webhooks')
 ```
 
-### Sandbox Mode for Testing
-
-The gem includes a built-in sandbox mode perfect for testing your integration without making live API calls or incurring costs:
-
-```ruby
-# Enable sandbox mode
-config = Cellcast::SMS::Configuration.new
-config.sandbox_mode = true
-
-client = Cellcast.sms(api_key: 'test-key', config: config)
-
-# All methods work the same, but no live calls are made
-response = client.quick_send(to: '+1234567890', message: 'Test message')
-puts response.success? # => true (mock response)
-```
-
-**Special Test Numbers** (inspired by Stripe's test cards):
-
-```ruby
-# These numbers trigger specific behaviors in sandbox mode:
-'+15550000000' # → Always succeeds
-'+15550000001' # → Always fails  
-'+15550000002' # → Rate limited (throws RateLimitError)
-'+15550000003' # → Invalid number (throws ValidationError)
-'+15550000004' # → Insufficient credits (throws APIError)
-```
-
-Perfect for testing error handling in your application:
-
-```ruby
-# Test error handling
-begin
-  client.quick_send(to: '+15550000002', message: 'Test')
-rescue Cellcast::SMS::RateLimitError => e
-  puts "Handle rate limiting: #{e.retry_after} seconds"
-end
-```
-
-See `examples/sandbox_mode.rb` for a complete sandbox demonstration.
-
 ## Error Handling
 
 The gem includes automatic retries and helpful error messages:

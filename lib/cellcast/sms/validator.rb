@@ -7,22 +7,33 @@ module Cellcast
     module Validator
       # Validate phone number format and content
       def validate_phone_number(phone)
+        unless phone.is_a?(String)
+          raise ValidationError, "Phone number must be a string, got #{phone.class}"
+        end
+        
         if phone.nil? || phone.strip.empty?
           raise ValidationError, "Phone number cannot be nil or empty. Please provide a valid phone number in international format (e.g., +1234567890)"
         end
-        unless phone.is_a?(String)
-          raise ValidationError, "Phone number must be a string, got #{phone.class}"
+        
+        # Strip whitespace for validation
+        clean_phone = phone.strip
+        
+        # Basic format validation for international numbers
+        unless clean_phone.match?(/^\+[1-9]\d{4,14}$/)
+          raise ValidationError, "Invalid phone number format: #{phone}. Please use international format (e.g., +1234567890)"
         end
       end
 
       # Validate SMS message content and length
       def validate_message(message)
-        if message.nil? || message.strip.empty?
-          raise ValidationError, "Message cannot be nil or empty. Please provide message content."
-        end
         unless message.is_a?(String)
           raise ValidationError, "Message must be a string, got #{message.class}"
         end
+        
+        if message.nil? || message.strip.empty?
+          raise ValidationError, "Message cannot be nil or empty. Please provide message content."
+        end
+        
         if message.length > 1600
           raise ValidationError, "Message too long (#{message.length}/1600 characters). Consider splitting into multiple messages."
         end
