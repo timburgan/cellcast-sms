@@ -6,8 +6,8 @@ require "cellcast"
 require "minitest/autorun"
 require "minitest/pride"
 
-# Add mocha for mocking HTTP requests
-require "mocha/minitest"
+# Add mocha for mocking HTTP requests (commented out for now)
+# require "mocha/minitest"
 
 # Mock HTTP responses for testing
 class MockHTTPResponse
