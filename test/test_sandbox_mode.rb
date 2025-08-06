@@ -27,7 +27,7 @@ class TestSandboxMode < Minitest::Test
     response = @client.quick_send(to: "+15550000001", message: "Test", from: "TEST")
     refute response.success?
     assert_equal "failed", response.status
-    assert_equal "Sandbox test failure", response.raw_response['failed_reason']
+    assert_equal "Sandbox test failure", response.raw_response["failed_reason"]
   end
 
   def test_sandbox_rate_limit_number
@@ -54,7 +54,7 @@ class TestSandboxMode < Minitest::Test
       message: "Test broadcast",
       from: "TEST"
     )
-    
+
     assert_equal 3, response.total_count
     assert_equal 2, response.successful_count
     assert_equal 1, response.failed_count
@@ -91,7 +91,7 @@ class TestSandboxMode < Minitest::Test
   def test_sandbox_unread_messages
     unread = @client.unread_messages
     assert_equal 1, unread.items.length
-    
+
     message = unread.items.first
     assert_equal "+15551234567", message.from
     assert_equal "Thanks for the update!", message.message
@@ -102,7 +102,7 @@ class TestSandboxMode < Minitest::Test
   def test_sandbox_conversation_history
     history = @client.conversation_history(original_message_id: "test_msg_123")
     assert_equal 1, history.items.length
-    
+
     reply = history.items.first
     assert_equal "test_msg_123", reply.original_message_id
     assert reply.is_reply?
@@ -113,24 +113,24 @@ class TestSandboxMode < Minitest::Test
       url: "https://example.com/webhook",
       events: ["sms.delivered", "sms.received"]
     )
-    
+
     assert response.success?
     webhook_data = response.raw_response
-    assert_equal "https://example.com/webhook", webhook_data['url']
-    assert_equal ["sms.delivered", "sms.received"], webhook_data['events']
-    refute_nil webhook_data['webhook_id']
+    assert_equal "https://example.com/webhook", webhook_data["url"]
+    assert_equal ["sms.delivered", "sms.received"], webhook_data["events"]
+    refute_nil webhook_data["webhook_id"]
   end
 
   def test_sandbox_webhook_test
     response = @client.test_webhook
     assert response.success?
-    assert response.raw_response['test_sent']
+    assert response.raw_response["test_sent"]
   end
 
   def test_sandbox_mark_all_read
-    response = @client.mark_all_read(message_ids: ["msg1", "msg2"])
+    response = @client.mark_all_read(message_ids: %w[msg1 msg2])
     assert response.success?
-    assert_equal 2, response.raw_response['marked_read']
+    assert_equal 2, response.raw_response["marked_read"]
   end
 
   def test_regular_phone_number_defaults_to_success
@@ -141,14 +141,14 @@ class TestSandboxMode < Minitest::Test
 
   def test_sandbox_responses_contain_metadata
     response = @client.sms.send_message(to: "+15550000000", message: "Test")
-    
+
     # Verify response structure matches real API
-    assert response['id']
-    assert response['message_id']
-    assert response['to']
-    assert response['status']
-    assert response['cost']
-    assert response['parts']
-    assert response['created_at']
+    assert response["id"]
+    assert response["message_id"]
+    assert response["to"]
+    assert response["status"]
+    assert response["cost"]
+    assert response["parts"]
+    assert response["created_at"]
   end
 end

@@ -13,11 +13,11 @@ class TestSandboxComprehensive < Minitest::Test
   def test_sandbox_mode_is_opt_in_only
     default_config = Cellcast::SMS::Configuration.new
     refute default_config.sandbox_mode, "Sandbox mode should be disabled by default"
-    
+
     # Explicitly enabling should work
     default_config.sandbox_mode = true
     assert default_config.sandbox_mode, "Should be able to enable sandbox mode"
-    
+
     # Should default to false again
     another_config = Cellcast::SMS::Configuration.new
     refute another_config.sandbox_mode, "New configuration should default to disabled"
@@ -37,7 +37,7 @@ class TestSandboxComprehensive < Minitest::Test
 
     # Non-string phone number
     assert_raises(Cellcast::SMS::ValidationError) do
-      @client.quick_send(to: 1234567890, message: "Test", from: "TEST")
+      @client.quick_send(to: 1_234_567_890, message: "Test", from: "TEST")
     end
 
     # Test number variations (different formats but same special number)
@@ -62,7 +62,7 @@ class TestSandboxComprehensive < Minitest::Test
     end
 
     # Very long message (over limit)
-    long_message = "a" * 1601  # Assuming 1600 char limit
+    long_message = "a" * 1601 # Assuming 1600 char limit
     assert_raises(Cellcast::SMS::ValidationError) do
       @client.quick_send(to: "+15550000000", message: long_message, from: "TEST")
     end
@@ -94,7 +94,7 @@ class TestSandboxComprehensive < Minitest::Test
     recipients = [
       "+15550000000",  # Success
       "+15550000001",  # Failure
-      "+15551234567"   # Success (default)
+      "+15551234567", # Success (default)
     ]
     response = @client.broadcast(to: recipients, message: "Test", from: "TEST")
     assert_equal 3, response.total_count
@@ -115,7 +115,7 @@ class TestSandboxComprehensive < Minitest::Test
       Cellcast.sms(api_key: "", config: @config)
     end
 
-    # Nil API key should trigger validation  
+    # Nil API key should trigger validation
     assert_raises(Cellcast::SMS::ValidationError) do
       Cellcast.sms(api_key: nil, config: @config)
     end
@@ -141,7 +141,7 @@ class TestSandboxComprehensive < Minitest::Test
       assert_equal 0.05, response.cost
       assert_equal 1, response.parts
       assert response.message_id.start_with?("sandbox_")
-      refute_nil response.raw_response['created_at']
+      refute_nil response.raw_response["created_at"]
     end
 
     # Test failure number multiple times
@@ -150,7 +150,7 @@ class TestSandboxComprehensive < Minitest::Test
       refute response.success?
       assert_equal "failed", response.status
       assert_equal 0.0, response.cost
-      assert_equal "Sandbox test failure", response.raw_response['failed_reason']
+      assert_equal "Sandbox test failure", response.raw_response["failed_reason"]
     end
 
     # Test rate limit number multiple times
@@ -177,7 +177,7 @@ class TestSandboxComprehensive < Minitest::Test
       error = assert_raises(Cellcast::SMS::APIError) do
         @client.quick_send(to: "+15550000004", message: "Test", from: "TEST")
       end
-      assert_equal 422, error.status_code  # Updated to match official API docs
+      assert_equal 422, error.status_code # Updated to match official API docs
       assert_includes error.message, "Insufficient credits"
     end
   end
@@ -186,73 +186,73 @@ class TestSandboxComprehensive < Minitest::Test
   def test_all_endpoints_in_sandbox
     # SMS API endpoints
     response = @client.sms.send_message(to: "+15550000000", message: "Test")
-    assert response['id']
-    assert response['status']
+    assert response["id"]
+    assert response["status"]
 
     bulk_response = @client.sms.send_bulk(messages: [{ to: "+15550000000", message: "Test" }])
     # Check for official API structure
-    assert bulk_response['data']
-    assert bulk_response['data']['queueResponse']
+    assert bulk_response["data"]
+    assert bulk_response["data"]["queueResponse"]
 
     status_response = @client.sms.get_status(message_id: "test_msg")
-    assert status_response['status']
+    assert status_response["status"]
 
     delivery_response = @client.sms.get_delivery_report(message_id: "test_msg")
-    assert delivery_response['delivery_report']
+    assert delivery_response["delivery_report"]
 
     list_response = @client.sms.list_messages(limit: 10)
-    assert list_response['data']
+    assert list_response["data"]
 
     # Incoming API endpoints
     incoming_response = @client.incoming.list_incoming(limit: 10)
-    assert incoming_response['data']
+    assert incoming_response["data"]
 
-    mark_read_response = @client.incoming.mark_as_read(message_ids: ["msg1", "msg2"])
-    assert mark_read_response['marked_read']
+    mark_read_response = @client.incoming.mark_as_read(message_ids: %w[msg1 msg2])
+    assert mark_read_response["marked_read"]
 
     replies_response = @client.incoming.get_replies(original_message_id: "test_msg")
-    assert replies_response['data']
+    assert replies_response["data"]
 
-    # Webhook API endpoints  
+    # Webhook API endpoints
     webhook_response = @client.webhook.configure_webhook(
       url: "https://example.com/webhook",
       events: ["sms.delivered"]
     )
-    assert webhook_response['webhook_id']
+    assert webhook_response["webhook_id"]
 
     test_webhook_response = @client.webhook.test_webhook
-    assert test_webhook_response['test_sent']
+    assert test_webhook_response["test_sent"]
 
     # Sender ID API endpoints
     sender_id_response = @client.sender_id.list_sender_ids
-    assert sender_id_response['data']['sender_ids']  # Updated to match official API structure
+    assert sender_id_response["data"]["sender_ids"] # Updated to match official API structure
 
     # Token API endpoints
     token_response = @client.token.verify_token
-    assert token_response['status']  # Updated to match official API structure
+    assert token_response["status"] # Updated to match official API structure
   end
 
   # Test sandbox responses are realistic
   def test_sandbox_responses_realistic_structure
     response = @client.quick_send(to: "+15550000000", message: "Test", from: "TEST")
-    
+
     # Check all expected fields are present
-    assert response.raw_response['id']
-    assert response.raw_response['message_id']
-    assert response.raw_response['to']
-    assert response.raw_response['status']
-    assert response.raw_response['cost'].is_a?(Numeric)
-    assert response.raw_response['parts'].is_a?(Integer)
-    assert response.raw_response['created_at']
+    assert response.raw_response["id"]
+    assert response.raw_response["message_id"]
+    assert response.raw_response["to"]
+    assert response.raw_response["status"]
+    assert response.raw_response["cost"].is_a?(Numeric)
+    assert response.raw_response["parts"].is_a?(Integer)
+    assert response.raw_response["created_at"]
 
     # Check format of timestamps
-    assert_match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/, response.raw_response['created_at'])
+    assert_match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/, response.raw_response["created_at"])
 
     # Check message ID format
-    assert_match(/^sandbox_\d+_\d+$/, response.raw_response['message_id'])
+    assert_match(/^sandbox_\d+_\d+$/, response.raw_response["message_id"])
 
     # Check phone number preservation
-    assert_equal "+15550000000", response.raw_response['to']
+    assert_equal "+15550000000", response.raw_response["to"]
   end
 
   # Test sandbox mode isolation
@@ -262,8 +262,8 @@ class TestSandboxComprehensive < Minitest::Test
     refute regular_config.sandbox_mode
 
     # Create both types of clients
-    sandbox_client = Cellcast.sms(api_key: "test", config: @config)
-    regular_client = Cellcast.sms(api_key: "test", config: regular_config)
+    Cellcast.sms(api_key: "test", config: @config)
+    Cellcast.sms(api_key: "test", config: regular_config)
 
     # Verify sandbox client is in sandbox mode
     assert @config.sandbox_mode
@@ -274,7 +274,7 @@ class TestSandboxComprehensive < Minitest::Test
     # They should be independent
     @config.sandbox_mode = false
     refute @config.sandbox_mode
-    refute regular_config.sandbox_mode  # Should remain unchanged
+    refute regular_config.sandbox_mode # Should remain unchanged
   end
 
   # Test concurrent sandbox usage
@@ -311,11 +311,11 @@ class TestSandboxComprehensive < Minitest::Test
 
     # Test with array instead of string for message
     assert_raises(Cellcast::SMS::ValidationError) do
-      @client.quick_send(to: "+15550000000", message: ["Test", "Message"], from: "TEST")
+      @client.quick_send(to: "+15550000000", message: %w[Test Message], from: "TEST")
     end
 
     # Test with very large numbers
-    huge_number = "+" + "9" * 50
+    huge_number = "+#{'9' * 50}"
     assert_raises(Cellcast::SMS::ValidationError) do
       @client.quick_send(to: huge_number, message: "Test", from: "TEST")
     end
@@ -323,19 +323,19 @@ class TestSandboxComprehensive < Minitest::Test
 
   # Test sandbox logging if logger is configured
   def test_sandbox_logging
-    require 'logger'
-    require 'stringio'
-    
+    require "logger"
+    require "stringio"
+
     log_output = StringIO.new
     logger = Logger.new(log_output)
-    
+
     config = Cellcast::SMS::Configuration.new
     config.sandbox_mode = true
     config.logger = logger
-    
+
     client = Cellcast.sms(api_key: "test", config: config)
     client.quick_send(to: "+15550000000", message: "Test", from: "TEST")
-    
+
     log_content = log_output.string
     assert_includes log_content, "Sandbox request"
     assert_includes log_content, "POST"
@@ -346,15 +346,15 @@ class TestSandboxComprehensive < Minitest::Test
   def test_sandbox_memory_efficiency
     # Make many calls and ensure no obvious memory leaks
     initial_objects = ObjectSpace.count_objects
-    
+
     100.times do |i|
       @client.quick_send(to: "+15550000000", message: "Test #{i}", from: "TEST")
     end
-    
+
     final_objects = ObjectSpace.count_objects
-    
+
     # Objects should not grow excessively (allowing some growth for normal operation)
     total_growth = final_objects[:TOTAL] - initial_objects[:TOTAL]
-    assert total_growth < 10000, "Memory usage grew too much: #{total_growth} objects"
+    assert total_growth < 10_000, "Memory usage grew too much: #{total_growth} objects"
   end
 end

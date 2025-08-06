@@ -9,7 +9,7 @@ module Cellcast
 
       def initialize
         @open_timeout = 30
-        @read_timeout = 60  
+        @read_timeout = 60
         @logger = nil
         @sandbox_mode = false
       end
@@ -22,8 +22,8 @@ module Cellcast
       private
 
       def validate_timeouts
-        raise ValidationError, "open_timeout must be positive" unless open_timeout > 0
-        raise ValidationError, "read_timeout must be positive" unless read_timeout > 0
+        raise ValidationError, "open_timeout must be positive" unless open_timeout.positive?
+        raise ValidationError, "read_timeout must be positive" unless read_timeout.positive?
       end
     end
   end

@@ -6,8 +6,8 @@ require "cellcast"
 require "minitest/autorun"
 require "minitest/pride"
 
-# Add mocha for mocking HTTP requests (commented out for now)
-# require "mocha/minitest"
+# Add mocha for mocking HTTP requests
+require "mocha/minitest"
 
 # Mock HTTP responses for testing
 class MockHTTPResponse
@@ -53,6 +53,8 @@ module TestHelpers
   end
 end
 
-class Minitest::Test
-  include TestHelpers
+module Minitest
+  class Test
+    include TestHelpers
+  end
 end

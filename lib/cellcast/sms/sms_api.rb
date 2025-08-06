@@ -62,7 +62,7 @@ module Cellcast
         params = build_list_params(limit, offset, date_from, date_to)
         path = "sms/messages"
         path += "?#{params}" unless params.empty?
-        
+
         @client.request(method: :get, path: path)
       end
 
@@ -77,7 +77,7 @@ module Cellcast
           raise ValidationError, "Message at index #{index} must be a hash" unless msg.is_a?(Hash)
           raise ValidationError, "Message at index #{index} missing :to" unless msg.key?(:to)
           raise ValidationError, "Message at index #{index} missing :message" unless msg.key?(:message)
-          
+
           validate_phone_number(msg[:to])
           validate_message(msg[:message])
         end
@@ -86,9 +86,9 @@ module Cellcast
       def build_send_message_body(to, message, sender_id, options)
         body = {
           to: to,
-          message: message
+          message: message,
         }
-        
+
         body[:sender_id] = sender_id if sender_id
         body.merge!(options)
         body
@@ -96,16 +96,16 @@ module Cellcast
 
       def build_bulk_message_body(messages, options)
         {
-          messages: messages.map { |msg| build_message_entry(msg, options) }
+          messages: messages.map { |msg| build_message_entry(msg, options) },
         }
       end
 
       def build_message_entry(message, global_options)
         entry = {
           to: message[:to],
-          message: message[:message]
+          message: message[:message],
         }
-        
+
         entry[:sender_id] = message[:sender_id] if message[:sender_id]
         entry.merge!(global_options)
         entry
@@ -113,15 +113,13 @@ module Cellcast
 
       def build_list_params(limit, offset, date_from, date_to)
         params = []
-        
-        if limit && (1..100).cover?(limit)
-          params << "limit=#{limit}"
-        end
-        
+
+        params << "limit=#{limit}" if limit && (1..100).cover?(limit)
+
         params << "offset=#{offset}" if offset && offset >= 0
         params << "date_from=#{date_from}" if date_from
         params << "date_to=#{date_to}" if date_to
-        
+
         params.join("&")
       end
     end

@@ -5,7 +5,7 @@ module Cellcast
     # Custom error classes for Cellcast SMS gem
     class Error < StandardError; end
     class AuthenticationError < Error; end
-    
+
     class APIError < Error
       attr_reader :status_code, :response_body
 
@@ -15,9 +15,9 @@ module Cellcast
         @response_body = response_body
       end
     end
-    
+
     class ValidationError < Error; end
-    
+
     class RateLimitError < APIError
       attr_reader :retry_after
 
@@ -26,9 +26,9 @@ module Cellcast
         @retry_after = retry_after
       end
     end
-    
+
     class ServerError < APIError; end
-    
+
     # Network-related errors
     class NetworkError < Error; end
     class TimeoutError < NetworkError; end

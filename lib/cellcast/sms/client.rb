@@ -11,7 +11,7 @@ module Cellcast
     # Following Sandi Metz rules: small class with single responsibility
     class Client
       include ConvenienceMethods
-      
+
       attr_reader :api_key, :base_url, :config
 
       def initialize(api_key:, base_url: "https://api.cellcast.com", config: nil)
@@ -23,36 +23,34 @@ module Cellcast
 
       # Access to SMS API endpoints
       def sms
-        @sms_api ||= SMSApi.new(self)
+        @sms ||= SMSApi.new(self)
       end
 
       # Access to Incoming SMS API endpoints
       def incoming
-        @incoming_api ||= IncomingApi.new(self)
+        @incoming ||= IncomingApi.new(self)
       end
 
-      # Access to Sender ID API endpoints  
+      # Access to Sender ID API endpoints
       def sender_id
-        @sender_id_api ||= SenderIdApi.new(self)
+        @sender_id ||= SenderIdApi.new(self)
       end
 
       # Access to Token API endpoints
       def token
-        @token_api ||= TokenApi.new(self)
+        @token ||= TokenApi.new(self)
       end
 
       # Access to Webhook API endpoints
       def webhook
-        @webhook_api ||= WebhookApi.new(self)
+        @webhook ||= WebhookApi.new(self)
       end
 
       # Make HTTP requests to the API with retry logic
       # Following Sandi Metz rule: methods should be small
       def request(method:, path:, body: nil, headers: {})
         # Check if sandbox mode is enabled
-        if config.sandbox_mode
-          return handle_sandbox_request(method: method, path: path, body: body)
-        end
+        return handle_sandbox_request(method: method, path: path, body: body) if config.sandbox_mode
 
         RetryHandler.with_retries(logger: config.logger) do
           execute_request(method, path, body, headers)
@@ -70,6 +68,7 @@ module Cellcast
         if key.nil? || key.strip.empty?
           raise ValidationError, "API key cannot be nil or empty. Get your API key from https://dashboard.cellcast.com/api-keys"
         end
+
         key.strip
       end
 
@@ -77,7 +76,7 @@ module Cellcast
         uri = build_uri(path)
         http = create_http_client(uri)
         request = build_request(method, uri, body, headers)
-        
+
         response = http.request(request)
         handle_response(response)
       rescue Net::OpenTimeout, Net::ReadTimeout => e
@@ -86,12 +85,12 @@ module Cellcast
         raise ConnectionError, "Connection failed: #{e.message}"
       rescue OpenSSL::SSL::SSLError => e
         raise SSLError, "SSL error: #{e.message}"
-      rescue => e
+      rescue StandardError => e
         raise NetworkError, "Network error: #{e.message}"
       end
 
       def build_uri(path)
-        URI("#{base_url}/#{path.gsub(/^\//, '')}")
+        URI("#{base_url}/#{path.gsub(%r{^/}, '')}")
       end
 
       def create_http_client(uri)
@@ -104,18 +103,18 @@ module Cellcast
 
       def build_request(method, uri, body, headers)
         request_class = case method.to_s.upcase
-                       when "GET" then Net::HTTP::Get
-                       when "POST" then Net::HTTP::Post
-                       when "PUT" then Net::HTTP::Put
-                       when "DELETE" then Net::HTTP::Delete
-                       else raise ValidationError, "Unsupported HTTP method: #{method}"
-                       end
+                        when "GET" then Net::HTTP::Get
+                        when "POST" then Net::HTTP::Post
+                        when "PUT" then Net::HTTP::Put
+                        when "DELETE" then Net::HTTP::Delete
+                        else raise ValidationError, "Unsupported HTTP method: #{method}"
+                        end
 
         request = request_class.new(uri)
         request["Authorization"] = "Bearer #{api_key}"
         request["Content-Type"] = "application/json"
         request["User-Agent"] = "cellcast-sms-ruby/#{VERSION}"
-        
+
         headers.each { |key, value| request[key] = value }
         request.body = body.to_json if body
         request
@@ -131,37 +130,38 @@ module Cellcast
           retry_after = extract_retry_after(response)
           message = "Rate limit exceeded. "
           message += retry_after ? "Retry after #{retry_after} seconds." : "Please wait before making more requests."
-          raise RateLimitError.new(message, 
-                                  status_code: response.code.to_i,
-                                  response_body: response.body,
-                                  retry_after: retry_after)
+          raise RateLimitError.new(message,
+                                   status_code: response.code.to_i,
+                                   response_body: response.body,
+                                   retry_after: retry_after)
         when 400..499
           error_details = parse_error_details(response.body)
           message = "Client error: #{response.message}"
           message += ". #{error_details}" if error_details
           raise APIError.new(message,
-                            status_code: response.code.to_i,
-                            response_body: response.body)
+                             status_code: response.code.to_i,
+                             response_body: response.body)
         when 500..599
           raise ServerError.new("Server error: #{response.message}. Please try again later or contact support if the issue persists.",
-                               status_code: response.code.to_i,
-                               response_body: response.body)
+                                status_code: response.code.to_i,
+                                response_body: response.body)
         else
           raise APIError.new("Unexpected response: #{response.code} #{response.message}",
-                            status_code: response.code.to_i,
-                            response_body: response.body)
+                             status_code: response.code.to_i,
+                             response_body: response.body)
         end
       end
 
       def extract_retry_after(response)
         retry_after_header = response["Retry-After"]
         return nil unless retry_after_header
-        
+
         retry_after_header.to_i if retry_after_header.match?(/^\d+$/)
       end
 
       def parse_response_body(body)
         return {} if body.nil? || body.strip.empty?
+
         JSON.parse(body)
       rescue JSON::ParserError
         { "raw_response" => body }
@@ -169,9 +169,9 @@ module Cellcast
 
       def parse_error_details(body)
         return nil if body.nil? || body.strip.empty?
-        
+
         parsed = JSON.parse(body)
-        parsed['error'] || parsed['message'] || parsed['detail']
+        parsed["error"] || parsed["message"] || parsed["detail"]
       rescue JSON::ParserError
         nil
       end

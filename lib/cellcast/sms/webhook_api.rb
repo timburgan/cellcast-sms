@@ -22,7 +22,7 @@ module Cellcast
 
         body = {
           url: url,
-          events: events
+          events: events,
         }
         body[:secret] = secret if secret
 
@@ -38,9 +38,9 @@ module Cellcast
       # Test webhook configuration by sending a test event
       # @param event_type [String] Type of test event to send
       # @return [Hash] API response
-      def test_webhook(event_type: 'test')
+      def test_webhook(event_type: "test")
         validate_event_type(event_type)
-        
+
         body = { event_type: event_type }
         @client.request(method: :post, path: "webhooks/test", body: body)
       end
@@ -57,7 +57,7 @@ module Cellcast
       # @return [Hash] API response with delivery logs
       def get_delivery_logs(limit: 50, offset: 0)
         validate_pagination_params(limit, offset)
-        
+
         params = "limit=#{limit}&offset=#{offset}"
         @client.request(method: :get, path: "webhooks/logs?#{params}")
       end
@@ -67,7 +67,7 @@ module Cellcast
       # @return [Hash] API response
       def retry_delivery(delivery_id:)
         validate_delivery_id(delivery_id)
-        
+
         body = { delivery_id: delivery_id }
         @client.request(method: :post, path: "webhooks/retry", body: body)
       end
@@ -76,9 +76,7 @@ module Cellcast
 
       def validate_event_type(event_type)
         valid_types = %w[test sms.sent sms.delivered sms.failed sms.received sms.reply]
-        unless valid_types.include?(event_type)
-          raise ValidationError, "Invalid event type: #{event_type}"
-        end
+        raise ValidationError, "Invalid event type: #{event_type}" unless valid_types.include?(event_type)
       end
 
       def validate_delivery_id(delivery_id)

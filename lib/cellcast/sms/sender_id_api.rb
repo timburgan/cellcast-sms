@@ -22,7 +22,7 @@ module Cellcast
         body = {
           business_name: business_name,
           business_registration: business_registration,
-          contact_info: contact_info
+          contact_info: contact_info,
         }
 
         @client.request(method: :post, path: "sender-id/business-name", body: body)
@@ -46,7 +46,7 @@ module Cellcast
 
         body = {
           phone_number: phone_number,
-          purpose: purpose
+          purpose: purpose,
         }
 
         @client.request(method: :post, path: "sender-id/custom-number", body: body)
@@ -62,7 +62,7 @@ module Cellcast
 
         body = {
           phone_number: phone_number,
-          verification_code: verification_code
+          verification_code: verification_code,
         }
 
         @client.request(method: :post, path: "sender-id/verify-custom-number", body: body)
@@ -97,7 +97,10 @@ module Cellcast
       end
 
       def validate_business_registration(registration)
-        raise ValidationError, "Business registration cannot be nil or empty" if registration.nil? || registration.strip.empty?
+        if registration.nil? || registration.strip.empty?
+          raise ValidationError,
+                "Business registration cannot be nil or empty"
+        end
         raise ValidationError, "Business registration must be a string" unless registration.is_a?(String)
       end
 

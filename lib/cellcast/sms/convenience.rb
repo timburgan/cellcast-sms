@@ -17,7 +17,7 @@ module Cellcast
 
       # Send SMS to multiple recipients with the same message
       # @param to [Array<String>] Array of phone numbers
-      # @param message [String] Message content  
+      # @param message [String] Message content
       # @param from [String, nil] Optional sender ID
       # @return [BulkMessageResponse] Wrapped response
       def broadcast(to:, message:, from: nil)

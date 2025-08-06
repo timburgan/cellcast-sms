@@ -23,16 +23,16 @@ class TestSandboxStress < Minitest::Test
   def test_bulk_mixed_scenarios
     # Create a large mix of different test numbers
     recipients = []
-    
+
     # Add various test numbers multiple times
     20.times do
       recipients += [
         "+15550000000",  # Success
         "+15550000001",  # Failure
-        "+15551234567"   # Default success
+        "+15551234567", # Default success
       ]
     end
-    
+
     response = @client.broadcast(to: recipients, message: "Bulk test", from: "TEST")
     assert_equal 60, response.total_count
     assert_equal 40, response.successful_count  # 2/3 should succeed
@@ -44,27 +44,23 @@ class TestSandboxStress < Minitest::Test
     # Test rate limiting errors in bulk
     error_count = 0
     20.times do
-      begin
-        @client.quick_send(to: "+15550000002", message: "Rate limit test", from: "TEST")
-        flunk "Should have raised RateLimitError"
-      rescue Cellcast::SMS::RateLimitError => e
-        error_count += 1
-        assert_equal 429, e.status_code
-        assert_equal 60, e.retry_after
-      end
+      @client.quick_send(to: "+15550000002", message: "Rate limit test", from: "TEST")
+      flunk "Should have raised RateLimitError"
+    rescue Cellcast::SMS::RateLimitError => e
+      error_count += 1
+      assert_equal 429, e.status_code
+      assert_equal 60, e.retry_after
     end
     assert_equal 20, error_count
-    
+
     # Test validation errors in bulk
     error_count = 0
     20.times do
-      begin
-        @client.quick_send(to: "+15550000003", message: "Invalid test", from: "TEST")
-        flunk "Should have raised ValidationError"
-      rescue Cellcast::SMS::ValidationError => e
-        error_count += 1
-        assert_includes e.message, "Invalid phone number format"
-      end
+      @client.quick_send(to: "+15550000003", message: "Invalid test", from: "TEST")
+      flunk "Should have raised ValidationError"
+    rescue Cellcast::SMS::ValidationError => e
+      error_count += 1
+      assert_includes e.message, "Invalid phone number format"
     end
     assert_equal 20, error_count
   end
@@ -75,7 +71,7 @@ class TestSandboxStress < Minitest::Test
     exact_limit_message = "a" * 1600
     response = @client.quick_send(to: "+15550000000", message: exact_limit_message, from: "TEST")
     assert response.success?
-    
+
     # Test just over limit multiple times
     5.times do |i|
       over_limit_message = "a" * (1601 + i)
@@ -83,9 +79,9 @@ class TestSandboxStress < Minitest::Test
         @client.quick_send(to: "+15550000000", message: over_limit_message, from: "TEST")
       end
     end
-    
+
     # Test very short messages
-    ["a", "ab", "abc"].each do |short_msg|
+    %w[a ab abc].each do |short_msg|
       response = @client.quick_send(to: "+15550000000", message: short_msg, from: "TEST")
       assert response.success?
     end
@@ -101,9 +97,9 @@ class TestSandboxStress < Minitest::Test
       "🚀🎉🎯💫⚡🔥💯",
       "Math: ∑∞≠±÷×≈∆",
       "Quotes: \"''«»‚„\"",
-      "Symbols: ©®™€£¥"
+      "Symbols: ©®™€£¥",
     ]
-    
+
     unicode_messages.each do |msg|
       response = @client.quick_send(to: "+15550000000", message: msg, from: "TEST")
       assert response.success?, "Unicode message should work: #{msg}"
@@ -119,19 +115,19 @@ class TestSandboxStress < Minitest::Test
       @client.sms.get_status(message_id: "test_#{i}")
       @client.sms.get_delivery_report(message_id: "test_#{i}")
       @client.sms.list_messages(limit: 10)
-      
+
       # Incoming operations
       @client.incoming.list_incoming(limit: 10)
       @client.incoming.mark_as_read(message_ids: ["msg_#{i}"])
       @client.incoming.get_replies(original_message_id: "orig_#{i}")
-      
+
       # Webhook operations
       @client.webhook.configure_webhook(url: "https://example#{i}.com/webhook", events: ["sms.sent"])
       @client.webhook.test_webhook
-      
+
       # Sender ID operations
       @client.sender_id.list_sender_ids
-      
+
       # Token operations
       @client.token.verify_token
     end
@@ -145,16 +141,16 @@ class TestSandboxStress < Minitest::Test
       config.sandbox_mode = true
       Cellcast.sms(api_key: "test_client_#{i}", config: config)
     end
-    
+
     # Each client performs operations
     results = clients.map.with_index do |client, i|
       [
         client.quick_send(to: "+15550000000", message: "Client #{i}", from: "TEST"),
         client.check_status(message_id: "test_#{i}"),
-        client.unread_messages
+        client.unread_messages,
       ]
     end
-    
+
     # All should succeed
     results.each_with_index do |(send_response, status_response, unread_response), i|
       assert send_response.success?, "Client #{i} send should succeed"
@@ -171,20 +167,20 @@ class TestSandboxStress < Minitest::Test
       "+",              # Just +
       "+0123456789",    # Starts with 0
       "+123",           # Too short
-      "+1" + "9" * 20,  # Too long
+      "+1#{'9' * 20}", # Too long
       "++1234567890",   # Double +
       "+1-234-567-890", # With dashes
       "+1 234 567 890", # With spaces (internal)
       "abc123",         # Letters
       "😀123456789",     # Emoji
     ]
-    
+
     invalid_phones.each do |phone|
       assert_raises(Cellcast::SMS::ValidationError) do
         @client.quick_send(to: phone, message: "Test", from: "TEST")
       end
     end
-    
+
     # Various invalid message types
     invalid_messages = [
       nil,
@@ -194,9 +190,9 @@ class TestSandboxStress < Minitest::Test
       [],
       {},
       true,
-      false
+      false,
     ]
-    
+
     invalid_messages.each do |message|
       assert_raises(Cellcast::SMS::ValidationError) do
         @client.quick_send(to: "+15550000000", message: message, from: "TEST")
@@ -209,29 +205,29 @@ class TestSandboxStress < Minitest::Test
     # Same request should produce consistent response structure
     10.times do
       response = @client.quick_send(to: "+15550000000", message: "Consistency test", from: "TEST")
-      
+
       # Check structure consistency
-      assert response.raw_response['id']
-      assert response.raw_response['message_id']
-      assert response.raw_response['to']
-      assert response.raw_response['status']
-      assert response.raw_response['cost']
-      assert response.raw_response['parts']
-      assert response.raw_response['created_at']
-      
+      assert response.raw_response["id"]
+      assert response.raw_response["message_id"]
+      assert response.raw_response["to"]
+      assert response.raw_response["status"]
+      assert response.raw_response["cost"]
+      assert response.raw_response["parts"]
+      assert response.raw_response["created_at"]
+
       # Check types consistency (updated for real API format)
-      assert response.raw_response['id'].is_a?(String)
-      assert response.raw_response['message_id'].is_a?(String)
-      assert response.raw_response['to'].is_a?(String)
-      assert [TrueClass, FalseClass].include?(response.raw_response['status'].class)  # Boolean in real API
-      assert response.raw_response['cost'].is_a?(Numeric)
-      assert response.raw_response['parts'].is_a?(Integer)
-      assert response.raw_response['created_at'].is_a?(String)
-      
+      assert response.raw_response["id"].is_a?(String)
+      assert response.raw_response["message_id"].is_a?(String)
+      assert response.raw_response["to"].is_a?(String)
+      assert [TrueClass, FalseClass].include?(response.raw_response["status"].class) # Boolean in real API
+      assert response.raw_response["cost"].is_a?(Numeric)
+      assert response.raw_response["parts"].is_a?(Integer)
+      assert response.raw_response["created_at"].is_a?(String)
+
       # Check format consistency
-      assert_match(/^sandbox_\d+_\d+$/, response.raw_response['message_id'])
-      assert_match(/^\+\d+$/, response.raw_response['to'])
-      assert_match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/, response.raw_response['created_at'])
+      assert_match(/^sandbox_\d+_\d+$/, response.raw_response["message_id"])
+      assert_match(/^\+\d+$/, response.raw_response["to"])
+      assert_match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/, response.raw_response["created_at"])
     end
   end
 
@@ -240,24 +236,24 @@ class TestSandboxStress < Minitest::Test
     # Baseline measurement
     GC.start
     initial_objects = ObjectSpace.count_objects
-    
+
     # Perform many operations
     500.times do |i|
       @client.quick_send(to: "+15550000000", message: "Memory test #{i}", from: "TEST")
       @client.check_status(message_id: "test_#{i}")
       @client.unread_messages
-      
+
       # Trigger GC periodically
-      GC.start if i % 100 == 0
+      GC.start if (i % 100).zero?
     end
-    
+
     # Final measurement
     GC.start
     final_objects = ObjectSpace.count_objects
-    
+
     # Memory growth should be reasonable
     growth = final_objects[:TOTAL] - initial_objects[:TOTAL]
-    assert growth < 50000, "Memory growth too high: #{growth} objects"
+    assert growth < 50_000, "Memory growth too high: #{growth} objects"
   end
 
   # Test edge cases in bulk operations
@@ -265,26 +261,26 @@ class TestSandboxStress < Minitest::Test
     # Maximum recipients (boundary testing) - 1000 should be OK, 1001 should fail
     # Start from 1000 to avoid special test numbers (0-4)
     max_recipients = Array.new(1001) { |i| "+1555001#{i.to_s.rjust(3, '0')}" }
-    
+
     # Should handle large bulk but this should hit validation limits (1001 > 1000)
     assert_raises(Cellcast::SMS::ValidationError) do
       @client.broadcast(to: max_recipients, message: "Over max test", from: "TEST")
     end
-    
+
     # Test exactly at maximum that should work (1000)
     # Start from 2000 to avoid special test numbers
     exactly_max_recipients = Array.new(1000) { |i| "+1555002#{i.to_s.rjust(3, '0')}" }
     response = @client.broadcast(to: exactly_max_recipients, message: "Exactly max test", from: "TEST")
     assert_equal 1000, response.total_count
-    
+
     # Test near-maximum that should definitely work
     # Start from 3000 to avoid special test numbers
     near_max_recipients = Array.new(100) { |i| "+1555003#{i.to_s.rjust(3, '0')}" }
     response = @client.broadcast(to: near_max_recipients, message: "Near max test", from: "TEST")
     assert_equal 100, response.total_count
-    
+
     # Test mixed special numbers in bulk
-    mixed_recipients = Array.new(50) { |i| 
+    mixed_recipients = Array.new(50) do |i|
       case i % 5
       when 0 then "+15550000000"  # Success
       when 1 then "+15550000001"  # Failure
@@ -292,8 +288,8 @@ class TestSandboxStress < Minitest::Test
       when 3 then "+15551111111"  # Default success
       when 4 then "+15552222222"  # Default success
       end
-    }
-    
+    end
+
     response = @client.broadcast(to: mixed_recipients, message: "Mixed test", from: "TEST")
     assert_equal 50, response.total_count
     assert_equal 40, response.successful_count  # 4/5 should succeed

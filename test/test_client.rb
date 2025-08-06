@@ -17,7 +17,7 @@ class TestClient < Minitest::Test
   def test_client_initialization_with_custom_config
     config = Cellcast::SMS::Configuration.new
     config.open_timeout = 45
-    
+
     client = Cellcast.sms(api_key: @api_key, config: config)
     assert_equal 45, client.config.open_timeout
   end
@@ -26,7 +26,7 @@ class TestClient < Minitest::Test
     error = assert_raises(Cellcast::SMS::ValidationError) do
       Cellcast.sms(api_key: "")
     end
-    
+
     assert_includes error.message, "API key cannot be nil or empty"
     assert_includes error.message, "https://dashboard.cellcast.com/api-keys"
   end
@@ -35,7 +35,7 @@ class TestClient < Minitest::Test
     error = assert_raises(Cellcast::SMS::ValidationError) do
       Cellcast.sms(api_key: nil)
     end
-    
+
     assert_includes error.message, "Get your API key from"
   end
 
