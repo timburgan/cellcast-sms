@@ -898,7 +898,7 @@ puts response.success? # => true (realistic mock response)
 
 #### Special Test Numbers
 
-Inspired by Stripe's test cards and Twilio's test numbers, the sandbox mode provides special phone numbers that trigger specific behaviors:
+Inspired by Stripe's test cards and Twilio's magic test numbers, the sandbox mode provides special phone numbers that trigger specific behaviors:
 
 ```ruby
 '+15550000000' # → Always succeeds (queued status)
