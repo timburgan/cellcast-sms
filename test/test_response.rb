@@ -4,11 +4,29 @@ require "test_helper"
 
 class TestResponse < Minitest::Test
   def test_send_message_response
+    # Test with sandbox/API response structure
     raw_response = {
+      "app_type" => "web",
+      "app_version" => "1.0",
+      "status" => true,
+      "message" => "Request is being processed",
+      "data" => {
+        "queueResponse" => [
+          {
+            "Contact" => "1234567890",
+            "MessageId" => "msg_123",
+            "Result" => "Message added to queue.",
+            "Number" => "+1234567890",
+          },
+        ],
+        "invalidContacts" => [],
+        "totalValidContact" => 1,
+        "totalInvalidContact" => 0,
+      },
+      # Add backward compatibility fields
       "message_id" => "msg_123",
-      "status" => "queued",
       "cost" => 0.05,
-      "parts" => 1
+      "parts" => 1,
     }
 
     response = Cellcast::SMS::SendMessageResponse.new(raw_response)
@@ -21,12 +39,32 @@ class TestResponse < Minitest::Test
   end
 
   def test_bulk_message_response
+    # Test with sandbox/API response structure
     raw_response = {
-      "messages" => [
-        { "message_id" => "msg_1", "status" => "queued", "cost" => 0.05 },
-        { "message_id" => "msg_2", "status" => "failed", "cost" => 0.0 },
-        { "message_id" => "msg_3", "status" => "queued", "cost" => 0.05 }
-      ]
+      "app_type" => "web",
+      "app_version" => "1.0",
+      "status" => true,
+      "message" => "Request is being processed",
+      "data" => {
+        "queueResponse" => [
+          {
+            "Contact" => "1234567890",
+            "MessageId" => "msg_1",
+            "Result" => "Message added to queue.",
+            "Number" => "+1234567890",
+          },
+          {
+            "Contact" => "1987654321",
+            "MessageId" => "msg_3",
+            "Result" => "Message added to queue.",
+            "Number" => "+1987654321",
+          },
+        ],
+        "invalidContacts" => ["+1555555555"],
+        "totalValidContact" => 2,
+        "totalInvalidContact" => 1,
+        "totalUnsubscribeContact" => 0,
+      },
     }
 
     response = Cellcast::SMS::BulkMessageResponse.new(raw_response)
@@ -42,7 +80,7 @@ class TestResponse < Minitest::Test
     raw_response = {
       "message_id" => "msg_123",
       "status" => "delivered",
-      "delivered_at" => "2023-01-01T12:00:00Z"
+      "delivered_at" => "2023-01-01T12:00:00Z",
     }
 
     response = Cellcast::SMS::MessageStatusResponse.new(raw_response)
@@ -63,7 +101,7 @@ class TestResponse < Minitest::Test
       "message" => "Hello world",
       "received_at" => "2023-01-01T12:00:00Z",
       "read" => false,
-      "original_message_id" => "msg_456"
+      "original_message_id" => "msg_456",
     }
 
     response = Cellcast::SMS::IncomingMessageResponse.new(raw_response)
@@ -83,11 +121,11 @@ class TestResponse < Minitest::Test
       "data" => [
         { "id" => "inc_1", "from" => "+1111111111", "message" => "Hi", "read" => false },
         { "id" => "inc_2", "from" => "+2222222222", "message" => "Hello", "read" => true },
-        { "id" => "inc_3", "from" => "+3333333333", "message" => "Hey", "read" => false }
+        { "id" => "inc_3", "from" => "+3333333333", "message" => "Hey", "read" => false },
       ],
       "total" => 3,
       "limit" => 50,
-      "offset" => 0
+      "offset" => 0,
     }
 
     response = Cellcast::SMS::IncomingListResponse.new(raw_response)

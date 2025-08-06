@@ -23,7 +23,7 @@ module Cellcast
         params = build_list_params(limit, offset, date_from, date_to, sender_id, unread_only)
         path = "sms/incoming"
         path += "?#{params}" unless params.empty?
-        
+
         @client.request(method: :get, path: path)
       end
 
@@ -40,7 +40,7 @@ module Cellcast
       # @return [Hash] API response
       def mark_as_read(message_ids:)
         validate_message_ids(message_ids)
-        
+
         body = { message_ids: message_ids }
         @client.request(method: :post, path: "sms/mark-read", body: body)
       end
@@ -53,10 +53,10 @@ module Cellcast
       def get_replies(original_message_id:, limit: 50, offset: 0)
         validate_message_id(original_message_id)
         validate_pagination_params(limit, offset)
-        
+
         params = "limit=#{limit}&offset=#{offset}"
         path = "sms/replies/#{original_message_id}?#{params}"
-        
+
         @client.request(method: :get, path: path)
       end
 
@@ -64,17 +64,15 @@ module Cellcast
 
       def build_list_params(limit, offset, date_from, date_to, sender_id, unread_only)
         params = []
-        
-        if limit && (1..100).cover?(limit)
-          params << "limit=#{limit}"
-        end
-        
+
+        params << "limit=#{limit}" if limit && (1..100).cover?(limit)
+
         params << "offset=#{offset}" if offset && offset >= 0
         params << "date_from=#{date_from}" if date_from
         params << "date_to=#{date_to}" if date_to
         params << "sender_id=#{sender_id}" if sender_id
         params << "unread_only=true" if unread_only
-        
+
         params.join("&")
       end
     end

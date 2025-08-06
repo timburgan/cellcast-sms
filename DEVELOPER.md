@@ -454,6 +454,45 @@ messages = client.sms.list_messages(
 )
 ```
 
+#### Delete Message (Cancel Scheduled SMS)
+```ruby
+# Delete a scheduled message before it's sent
+response = client.sms.delete_message(message_id: 'msg_123456789')
+```
+
+**Response Format:**
+```json
+{
+  "app_type": "web",
+  "app_version": "1.0",
+  "status": true,
+  "message": "Message deleted successfully",
+  "data": {
+    "message_id": "msg_123456789",
+    "deleted": true,
+    "deleted_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+**Important Notes:**
+- This endpoint is primarily used to cancel scheduled messages that haven't been sent yet
+- Once a message has been sent or delivered, it typically cannot be deleted
+- The official API endpoint is named "Delete Sent SMS Message" but is mainly for scheduled messages
+- Use the convenience method `client.cancel_message(message_id: 'msg_123')` for simpler access
+
+**Error Scenarios:**
+- **404 Not Found**: Message doesn't exist or was already deleted
+- **400 Bad Request**: Message has already been sent and cannot be deleted  
+- **500 Server Error**: Internal error during deletion
+
+**Convenience Method:**
+```ruby
+# Simpler interface for canceling scheduled messages
+response = client.cancel_message(message_id: 'msg_123456789')
+# Returns a wrapped Response object with success?, message, and data access
+```
+
 ### Incoming SMS Module (`client.incoming`)
 
 #### List Incoming Messages
@@ -838,6 +877,194 @@ unread.has_more?          # => Boolean - more messages available?
 ```
 
 ## Testing & Development
+
+### Sandbox Mode for Cost-Free Testing
+
+The gem includes a comprehensive sandbox mode that allows you to test your SMS integration without making live API calls or incurring costs. This is perfect for development, testing, and CI/CD pipelines.
+
+#### Enabling Sandbox Mode
+
+```ruby
+# Enable sandbox mode (opt-in only, disabled by default)
+config = Cellcast::SMS::Configuration.new
+config.sandbox_mode = true
+
+client = Cellcast.sms(api_key: 'test-key', config: config)
+
+# All methods work identically, but no live calls are made
+response = client.quick_send(to: '+1234567890', message: 'Test message')
+puts response.success? # => true (realistic mock response)
+```
+
+#### Special Test Numbers
+
+Inspired by Stripe's test cards and Twilio's magic test numbers, the sandbox mode provides special phone numbers that trigger specific behaviors:
+
+```ruby
+'+15550000000' # → Always succeeds (queued status)
+'+15550000001' # → Always fails (failed status)  
+'+15550000002' # → Rate limited (throws RateLimitError)
+'+15550000003' # → Invalid number (throws ValidationError)
+'+15550000004' # → Insufficient credits (throws APIError)
+```
+
+Any other phone number defaults to successful behavior.
+
+#### Special Test Message IDs
+
+For testing the delete message functionality, sandbox mode provides special message IDs that trigger different behaviors:
+
+```ruby
+'sandbox_message_123'      # → Delete succeeds
+'sandbox_notfound_123'     # → Message not found (404 error)
+'sandbox_already_sent_123' # → Already sent, cannot delete (400 error)
+'sandbox_fail_123'         # → Delete operation fails (500 error)
+```
+
+**Usage Examples:**
+```ruby
+# Test successful deletion
+response = client.sms.delete_message(message_id: 'sandbox_message_123')
+puts response['status'] # => true
+
+# Test message not found scenario
+begin
+  client.sms.delete_message(message_id: 'sandbox_notfound_123')
+rescue Cellcast::SMS::APIError => e
+  puts "Error: #{e.message}" # => "Message not found"
+  puts "Status: #{e.status_code}" # => 404
+end
+
+# Test already sent message scenario
+begin
+  client.cancel_message(message_id: 'sandbox_already_sent_456')
+rescue Cellcast::SMS::APIError => e
+  puts "Cannot delete: #{e.message}" # => "Cannot delete already sent message"
+  puts "Status: #{e.status_code}" # => 400
+end
+```
+
+Any other message ID defaults to successful deletion behavior.
+
+#### Testing Error Scenarios
+
+The special test numbers make it easy to test error handling:
+
+```ruby
+# Test rate limiting scenarios
+begin
+  client.quick_send(to: '+15550000002', message: 'Test')
+rescue Cellcast::SMS::RateLimitError => e
+  puts "Handle rate limiting: retry after #{e.retry_after} seconds"
+end
+
+# Test validation errors
+begin
+  client.quick_send(to: '+15550000003', message: 'Test')
+rescue Cellcast::SMS::ValidationError => e
+  puts "Validation error: #{e.message}"
+end
+
+# Test API errors (insufficient credits)
+begin
+  client.quick_send(to: '+15550000004', message: 'Test')
+rescue Cellcast::SMS::APIError => e
+  puts "API error: #{e.message}, Status: #{e.status_code}"
+end
+```
+
+#### Comprehensive Sandbox Coverage
+
+The sandbox mode supports all API endpoints with realistic responses:
+
+```ruby
+# SMS sending
+response = client.quick_send(to: '+15550000000', message: 'Test')
+puts "Message ID: #{response.message_id}" # sandbox_1234567890_5678
+
+# Bulk sending
+broadcast = client.broadcast(
+  to: ['+15550000000', '+15550000001', '+15551234567'],
+  message: 'Test broadcast'
+)
+puts "Success: #{broadcast.successful_count}, Failed: #{broadcast.failed_count}"
+
+# Message status checking
+status = client.check_status(message_id: 'test_delivered_msg')
+puts status.delivered? # => true
+
+# Incoming messages simulation
+unread = client.unread_messages
+unread.items.each { |msg| puts "#{msg.from}: #{msg.message}" }
+
+# Webhook configuration
+webhook = client.setup_webhook(url: 'https://example.com/webhook')
+puts webhook.success? # => true
+
+# All other endpoints work similarly
+```
+
+#### Sandbox Response Format
+
+Sandbox responses match the real API structure exactly:
+
+```ruby
+# Real API response structure is replicated
+{
+  "id" => "sandbox_1641390000_1234",
+  "message_id" => "sandbox_1641390000_1234", 
+  "to" => "+15550000000",
+  "status" => "queued",
+  "cost" => 0.05,
+  "parts" => 1,
+  "created_at" => "2024-01-15T10:30:00Z"
+}
+```
+
+#### Benefits of Sandbox Mode
+
+- **💰 Zero Cost**: No charges for testing
+- **🎯 Predictable**: Consistent responses for reliable tests
+- **🧪 Error Testing**: Easy error scenario simulation
+- **⚡ Fast**: Instant responses without network delays
+- **🔒 Safe**: Perfect for CI/CD pipelines
+- **📚 Developer Friendly**: Matches real API exactly
+
+#### Example: Complete Test Suite
+
+```ruby
+# Test successful sending
+def test_successful_send
+  config = Cellcast::SMS::Configuration.new
+  config.sandbox_mode = true
+  client = Cellcast.sms(api_key: 'test', config: config)
+  
+  response = client.quick_send(to: '+15550000000', message: 'Test')
+  assert response.success?
+  assert_equal 'queued', response.status
+  assert response.message_id.start_with?('sandbox_')
+end
+
+# Test error handling
+def test_error_scenarios
+  # Rate limiting
+  assert_raises(Cellcast::SMS::RateLimitError) do
+    client.quick_send(to: '+15550000002', message: 'Test')
+  end
+  
+  # Invalid number
+  assert_raises(Cellcast::SMS::ValidationError) do  
+    client.quick_send(to: '+15550000003', message: 'Test')
+  end
+  
+  # API error
+  assert_raises(Cellcast::SMS::APIError) do
+    client.quick_send(to: '+15550000004', message: 'Test')
+  end
+end
+```
+
+For a complete sandbox demonstration, see `examples/sandbox_mode.rb`.
 
 ### Running Tests
 

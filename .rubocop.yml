@@ -1,0 +1,71 @@
+# RuboCop configuration for cellcast-sms gem
+# Prioritizing simple, readable Ruby code following community standards
+
+AllCops:
+  TargetRubyVersion: 3.3
+  NewCops: enable
+  Exclude:
+    - 'vendor/**/*'
+    - 'bin/**/*'
+    - 'examples/**/*'
+    - 'docs-internal/**/*'
+
+# Documentation enforcement - important for a public gem
+Style/Documentation:
+  Enabled: false # Disabled for now as many classes lack docs
+
+# Method length - keep methods focused and testable
+Metrics/MethodLength:
+  Max: 25 # Slightly higher for complex response handling
+
+# Class length - keep classes focused
+Metrics/ClassLength:
+  Max: 300
+
+# Line length - balance readability with modern screens
+Layout/LineLength:
+  Max: 120
+
+# Block length - some test blocks need to be longer
+Metrics/BlockLength:
+  Exclude:
+    - 'test/**/*'
+    - 'spec/**/*'
+
+# Parameter count - some API methods need multiple parameters
+Metrics/ParameterLists:
+  Max: 6
+
+# Complexity metrics - keep code maintainable
+Metrics/CyclomaticComplexity:
+  Max: 10
+
+Metrics/PerceivedComplexity:
+  Max: 10
+
+# String interpolation preference
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+# Hash syntax - modern Ruby style
+Style/HashSyntax:
+  EnforcedStyle: ruby19
+
+# Trailing commas for better diffs
+Style/TrailingCommaInArrayLiteral:
+  EnforcedStyleForMultiline: comma
+
+Style/TrailingCommaInHashLiteral:
+  EnforcedStyleForMultiline: comma
+
+# Frozen string literals - performance and immutability
+Style/FrozenStringLiteralComment:
+  Enabled: true
+
+# Prefer explicit returns for clarity in some cases
+Style/RedundantReturn:
+  AllowMultipleReturnValues: true
+
+# Allow guarding with unless for early returns
+Style/GuardClause:
+  MinBodyLength: 3

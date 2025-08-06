@@ -7,24 +7,34 @@ module Cellcast
     module Validator
       # Validate phone number format and content
       def validate_phone_number(phone)
+        raise ValidationError, "Phone number must be a string, got #{phone.class}" unless phone.is_a?(String)
+
         if phone.nil? || phone.strip.empty?
-          raise ValidationError, "Phone number cannot be nil or empty. Please provide a valid phone number in international format (e.g., +1234567890)"
+          raise ValidationError,
+                "Phone number cannot be nil or empty. Please provide a valid phone number in international format (e.g., +1234567890)"
         end
-        unless phone.is_a?(String)
-          raise ValidationError, "Phone number must be a string, got #{phone.class}"
+
+        # Strip whitespace for validation
+        clean_phone = phone.strip
+
+        # Basic format validation for international numbers
+        unless clean_phone.match?(/^\+[1-9]\d{4,14}$/)
+          raise ValidationError,
+                "Invalid phone number format: #{phone}. Please use international format (e.g., +1234567890)"
         end
       end
 
       # Validate SMS message content and length
       def validate_message(message)
+        raise ValidationError, "Message must be a string, got #{message.class}" unless message.is_a?(String)
+
         if message.nil? || message.strip.empty?
           raise ValidationError, "Message cannot be nil or empty. Please provide message content."
         end
-        unless message.is_a?(String)
-          raise ValidationError, "Message must be a string, got #{message.class}"
-        end
+
         if message.length > 1600
-          raise ValidationError, "Message too long (#{message.length}/1600 characters). Consider splitting into multiple messages."
+          raise ValidationError,
+                "Message too long (#{message.length}/1600 characters). Consider splitting into multiple messages."
         end
       end
 
@@ -39,7 +49,7 @@ module Cellcast
         raise ValidationError, "Message IDs must be an array" unless message_ids.is_a?(Array)
         raise ValidationError, "Message IDs array cannot be empty" if message_ids.empty?
         raise ValidationError, "Too many message IDs (max 100)" if message_ids.length > 100
-        
+
         message_ids.each_with_index do |id, index|
           raise ValidationError, "Message ID at index #{index} cannot be nil or empty" if id.nil? || id.strip.empty?
           raise ValidationError, "Message ID at index #{index} must be a string" unless id.is_a?(String)
@@ -57,10 +67,8 @@ module Cellcast
         if url.nil? || url.strip.empty?
           raise ValidationError, "URL cannot be nil or empty. Please provide a valid HTTP or HTTPS URL."
         end
-        unless url.is_a?(String)
-          raise ValidationError, "URL must be a string, got #{url.class}"
-        end
-        
+        raise ValidationError, "URL must be a string, got #{url.class}" unless url.is_a?(String)
+
         begin
           uri = URI.parse(url)
           unless %w[http https].include?(uri.scheme)
@@ -75,18 +83,16 @@ module Cellcast
       def validate_events(events)
         raise ValidationError, "Events must be an array" unless events.is_a?(Array)
         raise ValidationError, "Events array cannot be empty" if events.empty?
-        
+
         valid_events = %w[
           sms.sent sms.delivered sms.failed
           sms.received sms.reply
           sender_id.approved sender_id.rejected
           token.expired test
         ]
-        
+
         invalid_events = events - valid_events
-        unless invalid_events.empty?
-          raise ValidationError, "Invalid events: #{invalid_events.join(', ')}"
-        end
+        raise ValidationError, "Invalid events: #{invalid_events.join(', ')}" unless invalid_events.empty?
       end
     end
   end

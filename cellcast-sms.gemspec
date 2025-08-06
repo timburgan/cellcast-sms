@@ -9,7 +9,8 @@ Gem::Specification.new do |spec|
   spec.email = ["tim@burgan.id.au"]
 
   spec.summary = "Ruby gem for Cellcast API SMS endpoints"
-  spec.description = "A Ruby gem for interacting with Cellcast API SMS endpoints, supporting sending SMS messages and managing sender IDs."
+  spec.description = "A Ruby gem for interacting with Cellcast API SMS endpoints, supporting sending SMS messages and " \
+                     "managing sender IDs."
   spec.homepage = "https://github.com/timburgan/cellcast-sms"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3.0"
@@ -18,6 +19,7 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/timburgan/cellcast-sms"
   spec.metadata["changelog_uri"] = "https://github.com/timburgan/cellcast-sms/blob/main/CHANGELOG.md"
+  spec.metadata["rubygems_mfa_required"] = "true"
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.

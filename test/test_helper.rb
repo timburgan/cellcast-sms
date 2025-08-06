@@ -53,6 +53,8 @@ module TestHelpers
   end
 end
 
-class Minitest::Test
-  include TestHelpers
+module Minitest
+  class Test
+    include TestHelpers
+  end
 end

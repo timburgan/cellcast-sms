@@ -5,7 +5,7 @@ require "test_helper"
 class TestRetryHandler < Minitest::Test
   def test_successful_execution_no_retry
     call_count = 0
-    
+
     result = Cellcast::SMS::RetryHandler.with_retries do
       call_count += 1
       "success"
@@ -17,12 +17,11 @@ class TestRetryHandler < Minitest::Test
 
   def test_retry_on_server_error
     call_count = 0
-    
+
     result = Cellcast::SMS::RetryHandler.with_retries do
       call_count += 1
-      if call_count < 3
-        raise Cellcast::SMS::ServerError.new("Server error", status_code: 500)
-      end
+      raise Cellcast::SMS::ServerError.new("Server error", status_code: 500) if call_count < 3
+
       "success"
     end
 
@@ -32,12 +31,11 @@ class TestRetryHandler < Minitest::Test
 
   def test_retry_on_network_error
     call_count = 0
-    
+
     result = Cellcast::SMS::RetryHandler.with_retries do
       call_count += 1
-      if call_count < 2
-        raise Cellcast::SMS::TimeoutError, "Request timeout"
-      end
+      raise Cellcast::SMS::TimeoutError, "Request timeout" if call_count < 2
+
       "success"
     end
 
@@ -47,12 +45,12 @@ class TestRetryHandler < Minitest::Test
 
   def test_retry_on_rate_limit_with_retry_after
     call_count = 0
-    
+
     result = Cellcast::SMS::RetryHandler.with_retries do
       call_count += 1
       if call_count < 2
         raise Cellcast::SMS::RateLimitError.new(
-          "Rate limited", 
+          "Rate limited",
           status_code: 429,
           retry_after: 0.1
         )
@@ -66,7 +64,7 @@ class TestRetryHandler < Minitest::Test
 
   def test_no_retry_on_authentication_error
     call_count = 0
-    
+
     error = assert_raises(Cellcast::SMS::AuthenticationError) do
       Cellcast::SMS::RetryHandler.with_retries do
         call_count += 1
@@ -80,7 +78,7 @@ class TestRetryHandler < Minitest::Test
 
   def test_no_retry_on_validation_error
     call_count = 0
-    
+
     error = assert_raises(Cellcast::SMS::ValidationError) do
       Cellcast::SMS::RetryHandler.with_retries do
         call_count += 1
@@ -94,7 +92,7 @@ class TestRetryHandler < Minitest::Test
 
   def test_max_retries_exceeded
     call_count = 0
-    
+
     error = assert_raises(Cellcast::SMS::ServerError) do
       Cellcast::SMS::RetryHandler.with_retries do
         call_count += 1
@@ -103,20 +101,20 @@ class TestRetryHandler < Minitest::Test
     end
 
     assert_equal "Server error", error.message
-    assert_equal 4, call_count  # 1 initial + 3 retries (MAX_RETRIES = 3)
+    assert_equal 4, call_count # 1 initial + 3 retries (MAX_RETRIES = 3)
   end
 
   def test_exponential_backoff_calculation
     # Test delay calculation (without jitter for predictable testing)
     delay1 = Cellcast::SMS::RetryHandler.send(
-      :calculate_delay, 
-      1, 
+      :calculate_delay,
+      1,
       Cellcast::SMS::ServerError.new("test")
     )
-    
+
     delay2 = Cellcast::SMS::RetryHandler.send(
-      :calculate_delay, 
-      2, 
+      :calculate_delay,
+      2,
       Cellcast::SMS::ServerError.new("test")
     )
 

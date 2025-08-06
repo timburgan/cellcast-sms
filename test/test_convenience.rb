@@ -4,18 +4,12 @@ require "test_helper"
 
 class TestConvenience < Minitest::Test
   def setup
-    @client = Cellcast.sms(api_key: "test_key")
+    config = Cellcast::SMS::Configuration.new
+    config.sandbox_mode = true
+    @client = Cellcast.sms(api_key: "test_key", config: config)
   end
 
   def test_quick_send
-    mock_response = mock_successful_response({
-      "message_id" => "msg_123",
-      "status" => "queued",
-      "cost" => 0.05
-    })
-    
-    Net::HTTP.any_instance.stubs(:request).returns(mock_response)
-
     response = @client.quick_send(
       to: "+1234567890",
       message: "Hello world",
@@ -24,22 +18,38 @@ class TestConvenience < Minitest::Test
 
     assert_instance_of Cellcast::SMS::SendMessageResponse, response
     assert response.success?
-    assert_equal "msg_123", response.message_id
+    assert response.message_id
     assert_equal "queued", response.status
   end
 
-  def test_broadcast
-    mock_response = mock_successful_response({
-      "messages" => [
-        { "message_id" => "msg_1", "status" => "queued", "cost" => 0.05 },
-        { "message_id" => "msg_2", "status" => "queued", "cost" => 0.05 }
-      ]
-    })
-    
-    Net::HTTP.any_instance.stubs(:request).returns(mock_response)
+  def test_quick_send_special_test_number_success
+    response = @client.quick_send(
+      to: "+15550000000",
+      message: "Hello world",
+      from: "MyBrand"
+    )
 
+    assert_instance_of Cellcast::SMS::SendMessageResponse, response
+    assert response.success?
+    assert response.message_id
+    assert_equal "queued", response.status
+  end
+
+  def test_quick_send_special_test_number_failed
+    response = @client.quick_send(
+      to: "+15550000001",
+      message: "Hello world",
+      from: "MyBrand"
+    )
+
+    assert_instance_of Cellcast::SMS::SendMessageResponse, response
+    refute response.success?
+    assert_equal "failed", response.status
+  end
+
+  def test_broadcast
     response = @client.broadcast(
-      to: ["+1234567890", "+0987654321"],
+      to: ["+1234567890", "+1987654321"],
       message: "Broadcast message",
       from: "MyBrand"
     )
@@ -51,93 +61,90 @@ class TestConvenience < Minitest::Test
     assert_equal 0, response.failed_count
   end
 
-  def test_delivered_true
-    mock_response = mock_successful_response({
-      "message_id" => "msg_123",
-      "status" => "delivered"
-    })
-    
-    Net::HTTP.any_instance.stubs(:request).returns(mock_response)
+  def test_broadcast_mixed_results
+    response = @client.broadcast(
+      to: ["+15550000000", "+15550000001"], # Success + failed
+      message: "Broadcast message",
+      from: "MyBrand"
+    )
 
-    assert @client.delivered?(message_id: "msg_123")
+    assert_instance_of Cellcast::SMS::BulkMessageResponse, response
+    assert response.success?
+    assert_equal 2, response.total_count
+    assert_equal 1, response.successful_count
+    assert_equal 1, response.failed_count
+  end
+
+  def test_delivered_true
+    # First send a message to get an ID
+    send_response = @client.quick_send(to: "+15550000000", message: "Test")
+    message_id = send_response.message_id
+
+    assert @client.delivered?(message_id: message_id)
   end
 
   def test_delivered_false
-    mock_response = mock_successful_response({
-      "message_id" => "msg_123",
-      "status" => "failed"
-    })
-    
-    Net::HTTP.any_instance.stubs(:request).returns(mock_response)
-
-    refute @client.delivered?(message_id: "msg_123")
+    # Use failed test number message ID
+    assert_equal false, @client.delivered?(message_id: "sandbox_fail_123")
   end
 
   def test_check_status
-    mock_response = mock_successful_response({
-      "message_id" => "msg_123",
-      "status" => "delivered",
-      "delivered_at" => "2023-01-01T12:00:00Z"
-    })
-    
-    Net::HTTP.any_instance.stubs(:request).returns(mock_response)
+    # First send a message to get an ID
+    send_response = @client.quick_send(to: "+15550000000", message: "Test")
+    message_id = send_response.message_id
 
-    response = @client.check_status(message_id: "msg_123")
+    status_response = @client.check_status(message_id: message_id)
 
-    assert_instance_of Cellcast::SMS::MessageStatusResponse, response
-    assert response.delivered?
-    assert_equal "2023-01-01T12:00:00Z", response.delivered_at
+    assert_instance_of Cellcast::SMS::MessageStatusResponse, status_response
+    assert status_response.success?
+    assert_equal message_id, status_response.message_id
+    assert_includes %w[delivered sent queued], status_response.status
   end
 
   def test_unread_messages
-    mock_response = mock_successful_response({
-      "data" => [
-        { "id" => "inc_1", "from" => "+1111111111", "message" => "Hi", "read" => false },
-        { "id" => "inc_2", "from" => "+2222222222", "message" => "Hello", "read" => false }
-      ],
-      "total" => 2
-    })
-    
-    Net::HTTP.any_instance.stubs(:request).returns(mock_response)
-
-    response = @client.unread_messages(limit: 10)
+    response = @client.unread_messages
 
     assert_instance_of Cellcast::SMS::IncomingListResponse, response
-    assert_equal 2, response.total
-    assert_equal 2, response.unread_count
+    assert response.success?
+    assert response.items.is_a?(Array)
   end
 
   def test_setup_webhook
-    mock_response = mock_successful_response({
-      "webhook_id" => "hook_123",
-      "url" => "https://example.com/webhook",
-      "events" => ["sms.sent", "sms.delivered", "sms.failed", "sms.received", "sms.reply"]
-    })
-    
-    Net::HTTP.any_instance.stubs(:request).returns(mock_response)
-
     response = @client.setup_webhook(url: "https://example.com/webhook")
 
     assert_instance_of Cellcast::SMS::Response, response
     assert response.success?
-    assert_equal "hook_123", response["webhook_id"]
   end
 
   def test_setup_webhook_with_custom_events
-    mock_response = mock_successful_response({
-      "webhook_id" => "hook_123",
-      "url" => "https://example.com/webhook",
-      "events" => ["sms.sent", "sms.delivered"]
-    })
-    
-    Net::HTTP.any_instance.stubs(:request).returns(mock_response)
-
     response = @client.setup_webhook(
       url: "https://example.com/webhook",
-      events: ["sms.sent", "sms.delivered"]
+      events: ["sms.delivered", "sms.received"]
     )
 
+    assert_instance_of Cellcast::SMS::Response, response
     assert response.success?
-    assert_equal ["sms.sent", "sms.delivered"], response["events"]
+  end
+
+  def test_conversation_history
+    response = @client.conversation_history(original_message_id: "test_msg_123")
+
+    assert_instance_of Cellcast::SMS::IncomingListResponse, response
+    assert response.success?
+    assert response.items.is_a?(Array)
+  end
+
+  def test_test_webhook
+    response = @client.test_webhook
+
+    assert_instance_of Cellcast::SMS::Response, response
+    assert response.success?
+  end
+
+  def test_mark_all_read
+    response = @client.mark_all_read(message_ids: %w[msg1 msg2])
+
+    assert_instance_of Cellcast::SMS::Response, response
+    assert response.success?
   end
 end

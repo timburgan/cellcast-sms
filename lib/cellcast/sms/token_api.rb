@@ -30,7 +30,7 @@ module Cellcast
       # Get token usage statistics
       # @param period [String] Period for statistics ('daily', 'weekly', 'monthly')
       # @return [Hash] API response with usage statistics
-      def get_usage_stats(period: 'daily')
+      def get_usage_stats(period: "daily")
         validate_period(period)
         @client.request(method: :get, path: "auth/usage-stats?period=#{period}")
       end

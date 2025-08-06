@@ -20,24 +20,20 @@ module Cellcast
         begin
           attempt += 1
           block.call
-        rescue => error
-          if should_retry?(error, attempt)
-            delay = calculate_delay(attempt, error)
-            log_retry(logger, error, attempt, delay)
-            sleep(delay)
-            retry
-          else
-            raise error
-          end
+        rescue StandardError => e
+          raise e unless should_retry?(e, attempt)
+
+          delay = calculate_delay(attempt, e)
+          log_retry(logger, e, attempt, delay)
+          sleep(delay)
+          retry
         end
       end
-
-      private
 
       # Determine if error should trigger a retry
       def self.should_retry?(error, attempt)
         return false if attempt > MAX_RETRIES
-        
+
         case error
         when RateLimitError, ServerError, NetworkError, TimeoutError
           true
@@ -49,14 +45,12 @@ module Cellcast
       # Calculate exponential backoff delay
       def self.calculate_delay(attempt, error)
         # Use retry-after header for rate limits if available
-        if error.is_a?(RateLimitError) && error.retry_after
-          return [error.retry_after, MAX_DELAY].min
-        end
-        
+        return [error.retry_after, MAX_DELAY].min if error.is_a?(RateLimitError) && error.retry_after
+
         # Exponential backoff with jitter
-        delay = BASE_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
+        delay = BASE_DELAY * (BACKOFF_MULTIPLIER**(attempt - 1))
         delay = [delay, MAX_DELAY].min
-        
+
         # Add jitter (±25% of delay)
         jitter = delay * 0.25 * (rand - 0.5) * 2
         [delay + jitter, 0.1].max
@@ -65,7 +59,7 @@ module Cellcast
       # Log retry attempt
       def self.log_retry(logger, error, attempt, delay)
         return unless logger
-        
+
         logger.warn(
           "Cellcast API request failed (attempt #{attempt}): #{error.class} - #{error.message}. " \
           "Retrying in #{delay.round(2)} seconds..."

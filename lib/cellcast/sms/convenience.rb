@@ -17,7 +17,7 @@ module Cellcast
 
       # Send SMS to multiple recipients with the same message
       # @param to [Array<String>] Array of phone numbers
-      # @param message [String] Message content  
+      # @param message [String] Message content
       # @param from [String, nil] Optional sender ID
       # @return [BulkMessageResponse] Wrapped response
       def broadcast(to:, message:, from: nil)
@@ -80,6 +80,15 @@ module Cellcast
       # @return [Response] Test result
       def test_webhook
         response = webhook.test_webhook
+        Response.new(response)
+      end
+
+      # Cancel a scheduled SMS message
+      # This is primarily used to cancel scheduled messages that haven't been sent yet
+      # @param message_id [String] The message ID to cancel
+      # @return [Response] Wrapped response confirming cancellation
+      def cancel_message(message_id:)
+        response = sms.delete_message(message_id: message_id)
         Response.new(response)
       end
     end
