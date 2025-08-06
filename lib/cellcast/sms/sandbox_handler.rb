@@ -50,7 +50,7 @@ module Cellcast
         when %r{^auth/}
           handle_token_request(method, path, body)
         else
-          handle_generic_success
+          handle_unknown_endpoint(path)
         end
       end
 
@@ -767,7 +767,7 @@ module Cellcast
       def handle_delete_message(message_id, method)
         # Only handle DELETE requests
         unless method.to_s.upcase == "DELETE"
-          handle_generic_success
+          return handle_generic_success
         end
 
         # Special sandbox message IDs that trigger different behaviors
@@ -889,6 +889,33 @@ module Cellcast
 
       def generate_message_id
         "sandbox_#{Time.now.to_i}_#{rand(1000..9999)}"
+      end
+
+      def handle_unknown_endpoint(path)
+        error_response = {
+          "app_type" => "web",
+          "app_version" => "1.0",
+          "maintainence" => 0,
+          "new_version" => 0,
+          "force_update" => 0,
+          "invalid_token" => 0,
+          "refresh_token" => "",
+          "show_message" => 1,
+          "is_enc" => false,
+          "status" => false,
+          "message" => "Endpoint not found",
+          "message_type" => "toast",
+          "data" => {},
+          "error" => {
+            "errorMessage" => "The endpoint '#{path}' is not supported or does not exist",
+          },
+        }
+
+        raise APIError.new(
+          "Endpoint not found: #{path} (sandbox mode)",
+          status_code: 404,
+          response_body: error_response.to_json
+        )
       end
 
       def log_sandbox_request(method, path, body)
