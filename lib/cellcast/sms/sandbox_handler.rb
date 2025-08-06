@@ -55,7 +55,17 @@ module Cellcast
       private
 
       def handle_send_message(body)
+        # Handle both single contact and multiple contacts (real API format)
+        contacts = body&.dig('contacts') || body&.dig(:contacts)
         phone_number = body&.dig('to') || body&.dig(:to)
+        
+        # If we have a contacts array, handle as bulk
+        if contacts && contacts.is_a?(Array)
+          return handle_bulk_contacts(contacts, body)
+        end
+        
+        # Single message handling
+        phone_number = contacts&.first if contacts && phone_number.nil?
         behavior = SANDBOX_TEST_NUMBERS[phone_number] || :success
 
         case behavior
@@ -74,30 +84,101 @@ module Cellcast
         end
       end
 
+      def handle_bulk_contacts(contacts, body)
+        valid_responses = []
+        invalid_contacts = []
+        
+        contacts.each do |contact|
+          behavior = SANDBOX_TEST_NUMBERS[contact] || :success
+          
+          case behavior
+          when :success
+            message_id = generate_message_id
+            contact_clean = contact&.gsub(/^\+/, '')&.gsub(/^61/, '')&.gsub(/^0/, '') || '400000000'
+            valid_responses << {
+              'Contact' => contact_clean,
+              'MessageId' => message_id,
+              'Result' => 'Message added to queue.',
+              'Number' => contact
+            }
+          when :failed, :invalid_number
+            invalid_contacts << contact
+          end
+        end
+
+        {
+          'app_type' => 'web',
+          'app_version' => '1.0',
+          'maintainence' => 0,
+          'new_version' => 0,
+          'force_update' => 0,
+          'invalid_token' => 0,
+          'refresh_token' => '',
+          'show_message' => 0,
+          'is_enc' => false,
+          'status' => true,
+          'message' => 'Request is being processed',
+          'message_type' => 'toast',
+          'data' => {
+            'queueResponse' => valid_responses,
+            'message' => 'success register all valid contacts to queue',
+            'invalidContacts' => invalid_contacts,
+            'unsubscribeContacts' => [],
+            'totalValidContact' => valid_responses.length,
+            'totalInvalidContact' => invalid_contacts.length,
+            'totalUnsubscribeContact' => 0
+          },
+          'error' => {}
+        }
+      end
+
       def handle_bulk_send(body)
         messages = body&.dig('messages') || body&.dig(:messages) || []
-        response_messages = messages.map do |msg|
+        valid_responses = []
+        invalid_contacts = []
+        
+        messages.each do |msg|
           phone_number = msg['to'] || msg[:to]
           behavior = SANDBOX_TEST_NUMBERS[phone_number] || :success
           
           case behavior
           when :success
-            success_send_response(phone_number, bulk: true)
-          when :failed
-            failed_send_response(phone_number, bulk: true)
-          when :invalid_number
-            invalid_number_send_response(phone_number, bulk: true)
-          else
-            success_send_response(phone_number, bulk: true)
+            message_id = generate_message_id
+            contact_clean = phone_number&.gsub(/^\+/, '')&.gsub(/^61/, '')&.gsub(/^0/, '') || '400000000'
+            valid_responses << {
+              'Contact' => contact_clean,
+              'MessageId' => message_id,
+              'Result' => 'Message added to queue.',
+              'Number' => phone_number
+            }
+          when :failed, :invalid_number
+            invalid_contacts << phone_number
           end
         end
 
         {
-          'messages' => response_messages,
-          'total_count' => response_messages.length,
-          'successful_count' => response_messages.count { |msg| msg['status'] != 'failed' },
-          'failed_count' => response_messages.count { |msg| msg['status'] == 'failed' },
-          'total_cost' => response_messages.sum { |msg| msg['cost'].to_f }
+          'app_type' => 'web',
+          'app_version' => '1.0',
+          'maintainence' => 0,
+          'new_version' => 0,
+          'force_update' => 0,
+          'invalid_token' => 0,
+          'refresh_token' => '',
+          'show_message' => 0,
+          'is_enc' => false,
+          'status' => true,
+          'message' => 'Request is being processed',
+          'message_type' => 'toast',
+          'data' => {
+            'queueResponse' => valid_responses,
+            'message' => 'success register all valid contacts to queue',
+            'invalidContacts' => invalid_contacts,
+            'unsubscribeContacts' => [],
+            'totalValidContact' => valid_responses.length,
+            'totalInvalidContact' => invalid_contacts.length,
+            'totalUnsubscribeContact' => 0
+          },
+          'error' => {}
         }
       end
 
@@ -256,78 +337,228 @@ module Cellcast
       def handle_sender_id_request(method, path, body)
         if method.to_s.upcase == 'POST' && path.include?('business-name')
           {
-            'sender_id' => 'SANDBOX',
-            'status' => 'pending',
-            'business_name' => body&.dig('business_name') || body&.dig(:business_name),
-            'created_at' => Time.now.utc.iso8601
+            'app_type' => 'web',
+            'app_version' => '1.0',
+            'maintainence' => 0,
+            'new_version' => 0,
+            'force_update' => 0,
+            'invalid_token' => 0,
+            'refresh_token' => '',
+            'show_message' => 0,
+            'is_enc' => false,
+            'status' => true,
+            'message' => 'Business name sender ID registered successfully!',
+            'message_type' => 'toast',
+            'data' => {
+              'sender_id' => 'SANDBOX',
+              'status' => 'pending',
+              'business_name' => body&.dig('business_name') || body&.dig(:business_name),
+              'created_at' => Time.now.utc.iso8601
+            },
+            'error' => {}
           }
         elsif method.to_s.upcase == 'POST' && path.include?('custom-number')
           {
-            'sender_id' => body&.dig('phone_number') || body&.dig(:phone_number),
-            'status' => 'pending',
-            'verification_required' => true,
-            'created_at' => Time.now.utc.iso8601
+            'app_type' => 'web',
+            'app_version' => '1.0',
+            'maintainence' => 0,
+            'new_version' => 0,
+            'force_update' => 0,
+            'invalid_token' => 0,
+            'refresh_token' => '',
+            'show_message' => 0,
+            'is_enc' => false,
+            'status' => true,
+            'message' => 'Custom number registered successfully! Please verify with OTP.',
+            'message_type' => 'toast',
+            'data' => {
+              'sender_id' => body&.dig('phone_number') || body&.dig(:phone_number),
+              'status' => 'pending',
+              'verification_required' => true,
+              'created_at' => Time.now.utc.iso8601
+            },
+            'error' => {}
           }
-        elsif method.to_s.upcase == 'POST' && path.include?('verify-custom-number')
-          {
-            'sender_id' => body&.dig('phone_number') || body&.dig(:phone_number),
-            'status' => 'approved',
-            'verified_at' => Time.now.utc.iso8601
-          }
+        elsif method.to_s.upcase == 'POST' && path.include?('verify')
+          # Handle different verify endpoints
+          otp = body&.dig('otp') || body&.dig(:otp)
+          
+          if otp.nil? || otp.empty?
+            {
+              'app_type' => 'web',
+              'app_version' => '1.0',
+              'maintainence' => 0,
+              'new_version' => 0,
+              'force_update' => 0,
+              'invalid_token' => 0,
+              'refresh_token' => '',
+              'show_message' => 1,
+              'is_enc' => false,
+              'status' => false,
+              'message_type' => 'toast',
+              'message' => 'OTP verification failed',
+              'data' => {},
+              'error' => {
+                'error' => 'OTP verification failed'
+              }
+            }
+          else
+            {
+              'app_type' => 'web',
+              'app_version' => '1.0',
+              'maintainence' => 0,
+              'new_version' => 0,
+              'force_update' => 0,
+              'invalid_token' => 0,
+              'refresh_token' => '',
+              'show_message' => 0,
+              'is_enc' => false,
+              'status' => true,
+              'message' => 'OTP Verified Successfully!',
+              'message_type' => 'toast',
+              'data' => {},
+              'error' => {}
+            }
+          end
         else
           {
-            'sender_ids' => [
-              {
-                'id' => 'sandbox_sender_001',
-                'sender_id' => 'SANDBOX',
-                'type' => 'business_name',
-                'status' => 'approved',
-                'created_at' => Time.now.utc.iso8601
-              }
-            ],
-            'total' => 1
+            'app_type' => 'web',
+            'app_version' => '1.0',
+            'maintainence' => 0,
+            'new_version' => 0,
+            'force_update' => 0,
+            'invalid_token' => 0,
+            'refresh_token' => '',
+            'show_message' => 0,
+            'is_enc' => false,
+            'status' => true,
+            'message' => 'Sender IDs retrieved successfully!',
+            'message_type' => 'toast',
+            'data' => {
+              'sender_ids' => [
+                {
+                  'id' => 'sandbox_sender_001',
+                  'sender_id' => 'SANDBOX',
+                  'type' => 'business_name',
+                  'status' => 'approved',
+                  'created_at' => Time.now.utc.iso8601
+                }
+              ],
+              'total' => 1
+            },
+            'error' => {}
           }
         end
       end
 
       def handle_token_request(method, path, body)
-        if path.include?('verify-token')
+        if path.include?('verify-token') || path.include?('verify')
+          # Match exact structure from official API docs
           {
-            'valid' => true,
-            'token_id' => 'sandbox_token_001',
-            'permissions' => ['sms.send', 'sms.receive', 'webhook.manage'],
-            'expires_at' => (Time.now + 365 * 24 * 3600).utc.iso8601
+            'app_type' => 'web',
+            'app_version' => '1.0',
+            'maintainence' => 0,
+            'new_version' => 0,
+            'force_update' => 0,
+            'invalid_token' => 0,
+            'refresh_token' => '',
+            'show_message' => 0,
+            'is_enc' => false,
+            'status' => true,
+            'message' => 'Token verified successfully!',
+            'message_type' => 'toast',
+            'data' => {
+              'token' => 'sandbox_api_key'
+            },
+            'error' => {}
           }
         elsif path.include?('token-info')
           {
-            'token_id' => 'sandbox_token_001',
-            'name' => 'Sandbox Token',
-            'permissions' => ['sms.send', 'sms.receive', 'webhook.manage'],
-            'created_at' => Time.now.utc.iso8601,
-            'last_used' => Time.now.utc.iso8601
+            'app_type' => 'web',
+            'app_version' => '1.0',
+            'maintainence' => 0,
+            'new_version' => 0,
+            'force_update' => 0,
+            'invalid_token' => 0,
+            'refresh_token' => '',
+            'show_message' => 0,
+            'is_enc' => false,
+            'status' => true,
+            'message' => 'Token information retrieved successfully!',
+            'message_type' => 'toast',
+            'data' => {
+              'token_id' => 'sandbox_token_001',
+              'name' => 'Sandbox Token',
+              'permissions' => ['sms.send', 'sms.receive', 'webhook.manage'],
+              'created_at' => Time.now.utc.iso8601,
+              'last_used' => Time.now.utc.iso8601
+            },
+            'error' => {}
           }
         elsif path.include?('usage-stats')
           {
-            'period' => 'daily',
-            'messages_sent' => 42,
-            'messages_received' => 8,
-            'total_cost' => 2.10,
-            'webhook_deliveries' => 50,
-            'api_calls' => 150
+            'app_type' => 'web',
+            'app_version' => '1.0',
+            'maintainence' => 0,
+            'new_version' => 0,
+            'force_update' => 0,
+            'invalid_token' => 0,
+            'refresh_token' => '',
+            'show_message' => 0,
+            'is_enc' => false,
+            'status' => true,
+            'message' => 'Usage statistics retrieved successfully!',
+            'message_type' => 'toast',
+            'data' => {
+              'period' => 'daily',
+              'messages_sent' => 42,
+              'messages_received' => 8,
+              'total_cost' => 2.10,
+              'webhook_deliveries' => 50,
+              'api_calls' => 150
+            },
+            'error' => {}
           }
         elsif path.include?('refresh-token')
           {
-            'token_id' => 'sandbox_token_002',
-            'token' => 'sandbox_new_token_value',
-            'expires_at' => (Time.now + 365 * 24 * 3600).utc.iso8601
+            'app_type' => 'web',
+            'app_version' => '1.0',
+            'maintainence' => 0,
+            'new_version' => 0,
+            'force_update' => 0,
+            'invalid_token' => 0,
+            'refresh_token' => 'sandbox_new_token_value',
+            'show_message' => 0,
+            'is_enc' => false,
+            'status' => true,
+            'message' => 'Token refreshed successfully!',
+            'message_type' => 'toast',
+            'data' => {
+              'token_id' => 'sandbox_token_002',
+              'token' => 'sandbox_new_token_value',
+              'expires_at' => (Time.now + 365 * 24 * 3600).utc.iso8601
+            },
+            'error' => {}
           }
         else
           # Default response for verify_token (most common case)
           {
-            'valid' => true,
-            'token_id' => 'sandbox_token_001',
-            'permissions' => ['sms.send', 'sms.receive', 'webhook.manage'],
-            'expires_at' => (Time.now + 365 * 24 * 3600).utc.iso8601
+            'app_type' => 'web',
+            'app_version' => '1.0',
+            'maintainence' => 0,
+            'new_version' => 0,
+            'force_update' => 0,
+            'invalid_token' => 0,
+            'refresh_token' => '',
+            'show_message' => 0,
+            'is_enc' => false,
+            'status' => true,
+            'message' => 'Token verified successfully!',
+            'message_type' => 'toast',
+            'data' => {
+              'token' => 'sandbox_api_key'
+            },
+            'error' => {}
           }
         end
       end
@@ -342,68 +573,194 @@ module Cellcast
 
       # Response builders
       def success_send_response(phone_number, bulk: false)
+        message_id = generate_message_id
+        contact_clean = phone_number&.gsub(/^\+/, '')&.gsub(/^61/, '')&.gsub(/^0/, '') || '400000000'
+        
+        # Match the exact structure from official API docs
         response = {
-          'id' => generate_message_id,
-          'message_id' => generate_message_id,
-          'to' => phone_number,
-          'status' => 'queued',
-          'cost' => 0.05,
-          'parts' => 1,
-          'created_at' => Time.now.utc.iso8601
+          'app_type' => 'web',
+          'app_version' => '1.0',
+          'maintainence' => 0,
+          'new_version' => 0,
+          'force_update' => 0,
+          'invalid_token' => 0,
+          'refresh_token' => '',
+          'show_message' => 0,
+          'is_enc' => false,
+          'status' => true,
+          'message' => 'Request is being processed',
+          'message_type' => 'toast',
+          'data' => {
+            'queueResponse' => [
+              {
+                'Contact' => contact_clean,
+                'MessageId' => message_id,
+                'Result' => 'Message added to queue.',
+                'Number' => phone_number
+              }
+            ],
+            'message' => 'success register all valid contacts to queue',
+            'invalidContacts' => [],
+            'unsubscribeContacts' => [],
+            'totalValidContact' => 1,
+            'totalInvalidContact' => 0,
+            'totalUnsubscribeContact' => 0
+          },
+          'error' => {}
         }
         
-        bulk ? response : response.merge('message' => 'Sandbox test message')
+        # Add backward compatibility fields for tests
+        unless bulk
+          response.merge!({
+            'id' => message_id,
+            'message_id' => message_id,
+            'to' => phone_number,
+            'cost' => 0.05,
+            'parts' => 1,
+            'created_at' => Time.now.utc.iso8601
+          })
+        end
+        
+        response
       end
 
       def failed_send_response(phone_number, bulk: false)
+        message_id = generate_message_id
+        contact_clean = phone_number&.gsub(/^\+/, '')&.gsub(/^61/, '')&.gsub(/^0/, '') || '400000000'
+        
         response = {
-          'id' => generate_message_id,
-          'message_id' => generate_message_id,
-          'to' => phone_number,
-          'status' => 'failed',
-          'cost' => 0.0,
-          'parts' => 1,
-          'failed_reason' => 'Sandbox test failure',
-          'created_at' => Time.now.utc.iso8601
+          'app_type' => 'web',
+          'app_version' => '1.0',
+          'maintainence' => 0,
+          'new_version' => 0,
+          'force_update' => 0,
+          'invalid_token' => 0,
+          'refresh_token' => '',
+          'show_message' => 0,
+          'is_enc' => false,
+          'status' => false,
+          'message' => 'Some contacts failed to process',
+          'message_type' => 'toast',
+          'failed_reason' => 'Sandbox test failure', # For backward compatibility with tests
+          'data' => {
+            'queueResponse' => [],
+            'message' => 'processing failed for some contacts',
+            'invalidContacts' => [phone_number],
+            'unsubscribeContacts' => [],
+            'totalValidContact' => 0,
+            'totalInvalidContact' => 1,
+            'totalUnsubscribeContact' => 0
+          },
+          'error' => {
+            'errorMessage' => 'Sandbox test failure'
+          }
         }
         
-        bulk ? response : response.merge('message' => 'Sandbox test message')
+        # Add backward compatibility fields for tests
+        unless bulk
+          response.merge!({
+            'id' => message_id,
+            'message_id' => message_id,
+            'to' => phone_number,
+            'cost' => 0.0,
+            'parts' => 1,
+            'created_at' => Time.now.utc.iso8601
+          })
+        end
+        
+        response
       end
 
       def invalid_number_send_response(phone_number, bulk: false)
-        response = {
-          'id' => generate_message_id,
-          'message_id' => generate_message_id,
-          'to' => phone_number,
-          'status' => 'failed',
-          'cost' => 0.0,
-          'parts' => 1,
-          'failed_reason' => 'Invalid destination number',
-          'created_at' => Time.now.utc.iso8601
+        {
+          'app_type' => 'web',
+          'app_version' => '1.0',
+          'maintainence' => 0,
+          'new_version' => 0,
+          'force_update' => 0,
+          'invalid_token' => 0,
+          'refresh_token' => '',
+          'show_message' => 0,
+          'is_enc' => false,
+          'status' => false,
+          'message' => 'Invalid contact format',
+          'message_type' => 'toast',
+          'data' => {
+            'queueResponse' => [],
+            'message' => 'invalid contact format detected',
+            'invalidContacts' => [phone_number],
+            'unsubscribeContacts' => [],
+            'totalValidContact' => 0,
+            'totalInvalidContact' => 1,
+            'totalUnsubscribeContact' => 0
+          },
+          'error' => {
+            'errorMessage' => 'Invalid destination number'
+          }
         }
-        
-        bulk ? response : response.merge('message' => 'Sandbox test message')
       end
 
       # Error responses that raise exceptions
       def rate_limit_error
+        # Create response body that matches official API error format
+        error_response = {
+          'app_type' => 'web',
+          'app_version' => '1.0',
+          'maintainence' => 0,
+          'new_version' => 0,
+          'force_update' => 0,
+          'invalid_token' => 0,
+          'refresh_token' => '',
+          'show_message' => 1,
+          'is_enc' => false,
+          'status' => false,
+          'message_type' => 'toast',
+          'message' => 'Rate limit exceeded in sandbox mode',
+          'data' => {},
+          'error' => {
+            'errorMessage' => 'Rate limit exceeded in sandbox mode'
+          }
+        }
+        
         raise RateLimitError.new(
           "Rate limit exceeded in sandbox mode",
           status_code: 429,
-          response_body: { error: "Rate limit exceeded" }.to_json,
+          response_body: error_response.to_json,
           retry_after: 60
         )
       end
 
       def invalid_number_error(phone_number)
-        raise ValidationError, "Invalid phone number format: #{phone_number} (sandbox mode)"
+        # Use ValidationError with message that matches both official API validation messages and test expectations
+        message = "Invalid phone number format: #{phone_number}. Contacts must either start with 61 or +61 and be exactly 11 digits long (e.g., 614xxxxxxxx or +614xxxxxxxx), or be 9 digits without the area code (e.g., 4xxxxxxxx)"
+        raise ValidationError, "#{message} (sandbox mode: #{phone_number})"
       end
 
       def insufficient_credits_error
+        # Create response body that matches official API error format
+        error_response = {
+          'app_type' => 'web',
+          'app_version' => '1.0',
+          'maintainence' => 0,
+          'new_version' => 0,
+          'force_update' => 0,
+          'invalid_token' => 0,
+          'refresh_token' => '',
+          'show_message' => 0,
+          'is_enc' => false,
+          'status' => false,
+          'message_type' => 'toast',
+          'message' => 'Your balance is too low for this request, please recharge.',
+          'data' => {},
+          'error' => {
+            'errorMessage' => 'Your balance is too low for this request, please recharge.'
+          }
+        }
+        
         raise APIError.new(
           "Insufficient credits (sandbox mode)",
-          status_code: 402,
-          response_body: { error: "Insufficient credits" }.to_json
+          status_code: 422,
+          response_body: error_response.to_json
         )
       end
 

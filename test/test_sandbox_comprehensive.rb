@@ -177,7 +177,7 @@ class TestSandboxComprehensive < Minitest::Test
       error = assert_raises(Cellcast::SMS::APIError) do
         @client.quick_send(to: "+15550000004", message: "Test", from: "TEST")
       end
-      assert_equal 402, error.status_code
+      assert_equal 422, error.status_code  # Updated to match official API docs
       assert_includes error.message, "Insufficient credits"
     end
   end
@@ -190,7 +190,9 @@ class TestSandboxComprehensive < Minitest::Test
     assert response['status']
 
     bulk_response = @client.sms.send_bulk(messages: [{ to: "+15550000000", message: "Test" }])
-    assert bulk_response['messages']
+    # Check for official API structure
+    assert bulk_response['data']
+    assert bulk_response['data']['queueResponse']
 
     status_response = @client.sms.get_status(message_id: "test_msg")
     assert status_response['status']
@@ -223,11 +225,11 @@ class TestSandboxComprehensive < Minitest::Test
 
     # Sender ID API endpoints
     sender_id_response = @client.sender_id.list_sender_ids
-    assert sender_id_response['sender_ids']
+    assert sender_id_response['data']['sender_ids']  # Updated to match official API structure
 
     # Token API endpoints
     token_response = @client.token.verify_token
-    assert token_response['valid']
+    assert token_response['status']  # Updated to match official API structure
   end
 
   # Test sandbox responses are realistic

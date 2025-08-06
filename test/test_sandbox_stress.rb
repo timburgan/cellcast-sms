@@ -219,11 +219,11 @@ class TestSandboxStress < Minitest::Test
       assert response.raw_response['parts']
       assert response.raw_response['created_at']
       
-      # Check types consistency
+      # Check types consistency (updated for real API format)
       assert response.raw_response['id'].is_a?(String)
       assert response.raw_response['message_id'].is_a?(String)
       assert response.raw_response['to'].is_a?(String)
-      assert response.raw_response['status'].is_a?(String)
+      assert [TrueClass, FalseClass].include?(response.raw_response['status'].class)  # Boolean in real API
       assert response.raw_response['cost'].is_a?(Numeric)
       assert response.raw_response['parts'].is_a?(Integer)
       assert response.raw_response['created_at'].is_a?(String)
@@ -263,7 +263,8 @@ class TestSandboxStress < Minitest::Test
   # Test edge cases in bulk operations
   def test_bulk_edge_cases_stress
     # Maximum recipients (boundary testing) - 1000 should be OK, 1001 should fail
-    max_recipients = Array.new(1001) { |i| "+1555000#{i.to_s.rjust(4, '0')}" }
+    # Start from 1000 to avoid special test numbers (0-4)
+    max_recipients = Array.new(1001) { |i| "+1555001#{i.to_s.rjust(3, '0')}" }
     
     # Should handle large bulk but this should hit validation limits (1001 > 1000)
     assert_raises(Cellcast::SMS::ValidationError) do
@@ -271,12 +272,14 @@ class TestSandboxStress < Minitest::Test
     end
     
     # Test exactly at maximum that should work (1000)
-    exactly_max_recipients = Array.new(1000) { |i| "+1555000#{i.to_s.rjust(4, '0')}" }
+    # Start from 2000 to avoid special test numbers
+    exactly_max_recipients = Array.new(1000) { |i| "+1555002#{i.to_s.rjust(3, '0')}" }
     response = @client.broadcast(to: exactly_max_recipients, message: "Exactly max test", from: "TEST")
     assert_equal 1000, response.total_count
     
     # Test near-maximum that should definitely work
-    near_max_recipients = Array.new(100) { |i| "+1555000#{i.to_s.rjust(4, '0')}" }
+    # Start from 3000 to avoid special test numbers
+    near_max_recipients = Array.new(100) { |i| "+1555003#{i.to_s.rjust(3, '0')}" }
     response = @client.broadcast(to: near_max_recipients, message: "Near max test", from: "TEST")
     assert_equal 100, response.total_count
     
