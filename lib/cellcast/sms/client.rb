@@ -49,12 +49,22 @@ module Cellcast
       # Make HTTP requests to the API with retry logic
       # Following Sandi Metz rule: methods should be small
       def request(method:, path:, body: nil, headers: {})
+        # Check if sandbox mode is enabled
+        if config.sandbox_mode
+          return handle_sandbox_request(method: method, path: path, body: body)
+        end
+
         RetryHandler.with_retries(logger: config.logger) do
           execute_request(method, path, body, headers)
         end
       end
 
       private
+
+      def handle_sandbox_request(method:, path:, body: nil)
+        @sandbox_handler ||= SandboxHandler.new(logger: config.logger)
+        @sandbox_handler.handle_request(method: method, path: path, body: body)
+      end
 
       def validate_api_key(key)
         if key.nil? || key.strip.empty?
