@@ -33,6 +33,8 @@ module Cellcast
           handle_message_status(::Regexp.last_match(1))
         when %r{^sms/delivery/(.+)$}
           handle_delivery_report(::Regexp.last_match(1))
+        when %r{^api/v1/gateway/messages/(.+)$}
+          handle_delete_message(::Regexp.last_match(1), method)
         when %r{^sms/incoming}
           handle_incoming_messages
         when %r{^sms/messages}
@@ -758,6 +760,129 @@ module Cellcast
         raise APIError.new(
           "Insufficient credits (sandbox mode)",
           status_code: 422,
+          response_body: error_response.to_json
+        )
+      end
+
+      def handle_delete_message(message_id, method)
+        # Only handle DELETE requests
+        unless method.to_s.upcase == "DELETE"
+          handle_generic_success
+        end
+
+        # Special sandbox message IDs that trigger different behaviors
+        case message_id
+        when /^sandbox_fail_/
+          delete_failed_response(message_id)
+        when /^sandbox_notfound_/
+          delete_not_found_response(message_id)
+        when /^sandbox_already_sent_/
+          delete_already_sent_response(message_id)
+        else
+          delete_success_response(message_id)
+        end
+      end
+
+      def delete_success_response(message_id)
+        {
+          "app_type" => "web",
+          "app_version" => "1.0",
+          "maintainence" => 0,
+          "new_version" => 0,
+          "force_update" => 0,
+          "invalid_token" => 0,
+          "refresh_token" => "",
+          "show_message" => 0,
+          "is_enc" => false,
+          "status" => true,
+          "message" => "Message deleted successfully",
+          "message_type" => "toast",
+          "data" => {
+            "message_id" => message_id,
+            "deleted" => true,
+            "deleted_at" => Time.now.utc.iso8601,
+          },
+          "error" => {},
+        }
+      end
+
+      def delete_not_found_response(message_id)
+        error_response = {
+          "app_type" => "web",
+          "app_version" => "1.0",
+          "maintainence" => 0,
+          "new_version" => 0,
+          "force_update" => 0,
+          "invalid_token" => 0,
+          "refresh_token" => "",
+          "show_message" => 1,
+          "is_enc" => false,
+          "status" => false,
+          "message" => "Message not found",
+          "message_type" => "toast",
+          "data" => {},
+          "error" => {
+            "errorMessage" => "Message not found or already deleted",
+          },
+        }
+
+        raise APIError.new(
+          "Message not found (sandbox mode)",
+          status_code: 404,
+          response_body: error_response.to_json
+        )
+      end
+
+      def delete_already_sent_response(message_id)
+        error_response = {
+          "app_type" => "web",
+          "app_version" => "1.0",
+          "maintainence" => 0,
+          "new_version" => 0,
+          "force_update" => 0,
+          "invalid_token" => 0,
+          "refresh_token" => "",
+          "show_message" => 1,
+          "is_enc" => false,
+          "status" => false,
+          "message" => "Cannot delete message that has already been sent",
+          "message_type" => "toast",
+          "data" => {},
+          "error" => {
+            "errorMessage" => "Message has already been sent and cannot be deleted",
+          },
+        }
+
+        raise APIError.new(
+          "Cannot delete already sent message (sandbox mode)",
+          status_code: 400,
+          response_body: error_response.to_json
+        )
+      end
+
+      def delete_failed_response(message_id)
+        error_response = {
+          "app_type" => "web",
+          "app_version" => "1.0",
+          "maintainence" => 0,
+          "new_version" => 0,
+          "force_update" => 0,
+          "invalid_token" => 0,
+          "refresh_token" => "",
+          "show_message" => 1,
+          "is_enc" => false,
+          "status" => false,
+          "message" => "Failed to delete message",
+          "message_type" => "toast",
+          "data" => {},
+          "error" => {
+            "errorMessage" => "Internal server error while deleting message",
+          },
+        }
+
+        raise APIError.new(
+          "Delete operation failed (sandbox mode)",
+          status_code: 500,
           response_body: error_response.to_json
         )
       end

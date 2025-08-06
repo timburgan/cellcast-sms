@@ -454,6 +454,45 @@ messages = client.sms.list_messages(
 )
 ```
 
+#### Delete Message (Cancel Scheduled SMS)
+```ruby
+# Delete a scheduled message before it's sent
+response = client.sms.delete_message(message_id: 'msg_123456789')
+```
+
+**Response Format:**
+```json
+{
+  "app_type": "web",
+  "app_version": "1.0",
+  "status": true,
+  "message": "Message deleted successfully",
+  "data": {
+    "message_id": "msg_123456789",
+    "deleted": true,
+    "deleted_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+**Important Notes:**
+- This endpoint is primarily used to cancel scheduled messages that haven't been sent yet
+- Once a message has been sent or delivered, it typically cannot be deleted
+- The official API endpoint is named "Delete Sent SMS Message" but is mainly for scheduled messages
+- Use the convenience method `client.cancel_message(message_id: 'msg_123')` for simpler access
+
+**Error Scenarios:**
+- **404 Not Found**: Message doesn't exist or was already deleted
+- **400 Bad Request**: Message has already been sent and cannot be deleted  
+- **500 Server Error**: Internal error during deletion
+
+**Convenience Method:**
+```ruby
+# Simpler interface for canceling scheduled messages
+response = client.cancel_message(message_id: 'msg_123456789')
+# Returns a wrapped Response object with success?, message, and data access
+```
+
 ### Incoming SMS Module (`client.incoming`)
 
 #### List Incoming Messages
@@ -870,6 +909,42 @@ Inspired by Stripe's test cards and Twilio's test numbers, the sandbox mode prov
 ```
 
 Any other phone number defaults to successful behavior.
+
+#### Special Test Message IDs
+
+For testing the delete message functionality, sandbox mode provides special message IDs that trigger different behaviors:
+
+```ruby
+'sandbox_message_123'      # → Delete succeeds
+'sandbox_notfound_123'     # → Message not found (404 error)
+'sandbox_already_sent_123' # → Already sent, cannot delete (400 error)
+'sandbox_fail_123'         # → Delete operation fails (500 error)
+```
+
+**Usage Examples:**
+```ruby
+# Test successful deletion
+response = client.sms.delete_message(message_id: 'sandbox_message_123')
+puts response['status'] # => true
+
+# Test message not found scenario
+begin
+  client.sms.delete_message(message_id: 'sandbox_notfound_123')
+rescue Cellcast::SMS::APIError => e
+  puts "Error: #{e.message}" # => "Message not found"
+  puts "Status: #{e.status_code}" # => 404
+end
+
+# Test already sent message scenario
+begin
+  client.cancel_message(message_id: 'sandbox_already_sent_456')
+rescue Cellcast::SMS::APIError => e
+  puts "Cannot delete: #{e.message}" # => "Cannot delete already sent message"
+  puts "Status: #{e.status_code}" # => 400
+end
+```
+
+Any other message ID defaults to successful deletion behavior.
 
 #### Testing Error Scenarios
 

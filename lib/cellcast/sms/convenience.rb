@@ -82,6 +82,15 @@ module Cellcast
         response = webhook.test_webhook
         Response.new(response)
       end
+
+      # Cancel a scheduled SMS message
+      # This is primarily used to cancel scheduled messages that haven't been sent yet
+      # @param message_id [String] The message ID to cancel
+      # @return [Response] Wrapped response confirming cancellation
+      def cancel_message(message_id:)
+        response = sms.delete_message(message_id: message_id)
+        Response.new(response)
+      end
     end
   end
 end

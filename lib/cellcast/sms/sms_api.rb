@@ -66,6 +66,17 @@ module Cellcast
         @client.request(method: :get, path: path)
       end
 
+      # Delete a scheduled SMS message by message ID
+      # This is primarily used to cancel scheduled messages that haven't been sent yet.
+      # Note: The official API endpoint name "Delete Sent SMS Message" may be misleading,
+      # but this is typically used for canceling future scheduled messages.
+      # @param message_id [String] The message ID to delete
+      # @return [Hash] API response confirming deletion
+      def delete_message(message_id:)
+        validate_message_id(message_id)
+        @client.request(method: :delete, path: "api/v1/gateway/messages/#{message_id}")
+      end
+
       private
 
       def validate_bulk_messages(messages)
