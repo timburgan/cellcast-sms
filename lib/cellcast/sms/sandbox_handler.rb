@@ -35,16 +35,16 @@ module Cellcast
           handle_delivery_report(::Regexp.last_match(1))
         when %r{^api/v1/gateway/messages/(.+)$}
           handle_delete_message(::Regexp.last_match(1), method)
-        when %r{^api/v1/gateway/messages$}
+        when %r{^api/v1/gateway/messages}
           handle_list_messages
-        when %r{^api/v1/incoming$}
-          handle_incoming_messages
-        when %r{^api/v1/incoming/(.+)$}
-          handle_get_incoming_message(::Regexp.last_match(1))
         when %r{^api/v1/incoming/mark-read$}
           handle_mark_read(body)
         when %r{^api/v1/incoming/replies/(.+)$}
           handle_replies(::Regexp.last_match(1))
+        when %r{^api/v1/incoming/([^/]+)$}
+          handle_get_incoming_message(::Regexp.last_match(1))
+        when %r{^api/v1/incoming}
+          handle_incoming_messages
         when %r{^api/v1/webhooks}
           handle_webhook_request(method, path, body)
         when %r{^api/v1/sender-id}

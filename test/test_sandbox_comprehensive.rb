@@ -339,7 +339,7 @@ class TestSandboxComprehensive < Minitest::Test
     log_content = log_output.string
     assert_includes log_content, "Sandbox request"
     assert_includes log_content, "POST"
-    assert_includes log_content, "sms/send"
+    assert_includes log_content, "api/v1/gateway"
   end
 
   # Test memory usage doesn't grow with repeated sandbox calls
