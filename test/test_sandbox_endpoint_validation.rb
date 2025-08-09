@@ -15,17 +15,17 @@ class TestSandboxEndpointValidation < Minitest::Test
   end
 
   def test_valid_endpoints_work
-    # Test all known valid endpoints
+    # Test all officially documented endpoints only
     valid_tests = [
       { method: :post, path: "api/v1/gateway", body: { to: "+15550000000", message: "test" } },
-      { method: :post, path: "api/v1/gateway/bulk", body: { messages: [{ to: "+15550000000", message: "test" }] } },
-      { method: :get, path: "api/v1/gateway/status/test123" },
-      { method: :get, path: "api/v1/gateway/delivery/test123" },
-      { method: :get, path: "api/v1/gateway/messages" },
+      { method: :post, path: "api/v1/gateway", body: { messages: [{ to: "+15550000000", message: "test" }] } }, # Bulk via same endpoint
       { method: :delete, path: "api/v1/gateway/messages/test123" },
-      { method: :get, path: "api/v1/incoming" },
-      { method: :post, path: "api/v1/incoming/mark-read", body: { message_ids: ["test123"] } },
-      { method: :get, path: "api/v1/incoming/replies/test123" }
+      { method: :get, path: "api/v1/user/token/verify" },
+      { method: :post, path: "api/v1/business/add", body: { business_name: "Test", business_registration: "123", contact_info: { email: "test@example.com", phone: "+1234567890" } } },
+      { method: :post, path: "api/v1/customNumber/add", body: { phone_number: "+1234567890", purpose: "Support" } },
+      { method: :post, path: "api/v1/customNumber/verifyCustomNumber", body: { phone_number: "+1234567890", verification_code: "123456" } },
+      { method: :get, path: "api/v1/apiClient/account" },
+      { method: :get, path: "api/v2/report/message/quick-api-credit-usage" }
     ]
 
     valid_tests.each do |test|
@@ -41,14 +41,24 @@ class TestSandboxEndpointValidation < Minitest::Test
   end
 
   def test_invalid_endpoints_are_rejected
-    # Test invalid endpoints that should be rejected
+    # Test invalid endpoints that should be rejected (including previously supported but undocumented ones)
     invalid_tests = [
       { method: :get, path: "nonexistent/endpoint" },
       { method: :post, path: "sms/invalid" },
       { method: :get, path: "api/v2/wrong/path" },
       { method: :delete, path: "sms/wrong/delete/path" },
       { method: :put, path: "completely/wrong" },
-      { method: :get, path: "api/wrong/version" }
+      { method: :get, path: "api/wrong/version" },
+      # Previously supported but undocumented endpoints
+      { method: :post, path: "api/v1/gateway/bulk" },
+      { method: :get, path: "api/v1/gateway/status/test123" },
+      { method: :get, path: "api/v1/gateway/delivery/test123" },
+      { method: :get, path: "api/v1/gateway/messages" },
+      { method: :get, path: "api/v1/incoming" },
+      { method: :post, path: "api/v1/incoming/mark-read" },
+      { method: :get, path: "api/v1/incoming/replies/test123" },
+      { method: :post, path: "api/v1/webhooks/configure" },
+      { method: :get, path: "api/v1/sender-id/business-name" }
     ]
 
     invalid_tests.each do |test|
