@@ -26,12 +26,7 @@ module Cellcast
         @sms ||= SMSApi.new(self)
       end
 
-      # Access to Incoming SMS API endpoints
-      def incoming
-        @incoming ||= IncomingApi.new(self)
-      end
-
-      # Access to Sender ID API endpoints
+      # Access to Sender ID API endpoints (business names and custom numbers)
       def sender_id
         @sender_id ||= SenderIdApi.new(self)
       end
@@ -41,9 +36,9 @@ module Cellcast
         @token ||= TokenApi.new(self)
       end
 
-      # Access to Webhook API endpoints
-      def webhook
-        @webhook ||= WebhookApi.new(self)
+      # Access to Account API endpoints (balance and usage reports)
+      def account
+        @account ||= AccountApi.new(self)
       end
 
       # Make HTTP requests to the API with retry logic

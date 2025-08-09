@@ -10,10 +10,9 @@ require_relative "sms/sandbox_handler"
 require_relative "sms/convenience"
 require_relative "sms/client"
 require_relative "sms/sms_api"
-require_relative "sms/incoming_api"
 require_relative "sms/sender_id_api"
 require_relative "sms/token_api"
-require_relative "sms/webhook_api"
+require_relative "sms/account_api"
 
 module Cellcast
   module SMS

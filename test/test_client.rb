@@ -41,10 +41,9 @@ class TestClient < Minitest::Test
 
   def test_api_endpoints_accessible
     assert_instance_of Cellcast::SMS::SMSApi, @client.sms
-    assert_instance_of Cellcast::SMS::IncomingApi, @client.incoming
-    assert_instance_of Cellcast::SMS::WebhookApi, @client.webhook
     assert_instance_of Cellcast::SMS::SenderIdApi, @client.sender_id
     assert_instance_of Cellcast::SMS::TokenApi, @client.token
+    assert_instance_of Cellcast::SMS::AccountApi, @client.account
   end
 
   def test_convenience_methods_available

@@ -2,8 +2,10 @@
 
 module Cellcast
   module SMS
-    # SMS API endpoints implementation
-    # Following Sandi Metz rules: small class with focused responsibility
+    # SMS API endpoints implementation - only officially documented endpoints
+    # Based on official Cellcast API documentation:
+    # - POST api/v1/gateway (single and bulk SMS)
+    # - DELETE api/v1/gateway/messages/{messageId} (delete message)
     class SMSApi
       include Validator
 
@@ -12,6 +14,7 @@ module Cellcast
       end
 
       # Send a single SMS message
+      # Official endpoint: POST https://api.cellcast.com/api/v1/gateway
       # @param to [String] The recipient phone number
       # @param message [String] The SMS message content
       # @param sender_id [String, nil] Optional sender ID
@@ -26,6 +29,7 @@ module Cellcast
       end
 
       # Send bulk SMS messages
+      # Official endpoint: POST https://api.cellcast.com/api/v1/gateway (same as single SMS)
       # @param messages [Array<Hash>] Array of message hashes with :to, :message, and optional :sender_id
       # @param options [Hash] Additional options applied to all messages
       # @return [Hash] API response
@@ -33,43 +37,12 @@ module Cellcast
         validate_bulk_messages(messages)
 
         body = build_bulk_message_body(messages, options)
-        @client.request(method: :post, path: "api/v1/gateway/bulk", body: body)
-      end
-
-      # Get SMS message status
-      # @param message_id [String] The message ID to check
-      # @return [Hash] API response with message status
-      def get_status(message_id:)
-        validate_message_id(message_id)
-        @client.request(method: :get, path: "api/v1/gateway/status/#{message_id}")
-      end
-
-      # Get SMS delivery report
-      # @param message_id [String] The message ID
-      # @return [Hash] API response with delivery report
-      def get_delivery_report(message_id:)
-        validate_message_id(message_id)
-        @client.request(method: :get, path: "api/v1/gateway/delivery/#{message_id}")
-      end
-
-      # List sent SMS messages with optional filters
-      # @param limit [Integer] Number of messages to retrieve (max 100)
-      # @param offset [Integer] Offset for pagination
-      # @param date_from [String] Start date filter (ISO 8601)
-      # @param date_to [String] End date filter (ISO 8601)
-      # @return [Hash] API response with message list
-      def list_messages(limit: 50, offset: 0, date_from: nil, date_to: nil)
-        params = build_list_params(limit, offset, date_from, date_to)
-        path = "api/v1/gateway/messages"
-        path += "?#{params}" unless params.empty?
-
-        @client.request(method: :get, path: path)
+        @client.request(method: :post, path: "api/v1/gateway", body: body)
       end
 
       # Delete a scheduled SMS message by message ID
+      # Official endpoint: DELETE https://api.cellcast.com/api/v1/gateway/messages/{messageId}
       # This is primarily used to cancel scheduled messages that haven't been sent yet.
-      # Note: The official API endpoint name "Delete Sent SMS Message" may be misleading,
-      # but this is typically used for canceling future scheduled messages.
       # @param message_id [String] The message ID to delete
       # @return [Hash] API response confirming deletion
       def delete_message(message_id:)
@@ -120,18 +93,6 @@ module Cellcast
         entry[:sender_id] = message[:sender_id] if message[:sender_id]
         entry.merge!(global_options)
         entry
-      end
-
-      def build_list_params(limit, offset, date_from, date_to)
-        params = []
-
-        params << "limit=#{limit}" if limit && (1..100).cover?(limit)
-
-        params << "offset=#{offset}" if offset && offset >= 0
-        params << "date_from=#{date_from}" if date_from
-        params << "date_to=#{date_to}" if date_to
-
-        params.join("&")
       end
     end
   end
