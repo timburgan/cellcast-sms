@@ -100,8 +100,8 @@ class TestDeleteMessage < Minitest::Test
     
     response = @client.cancel_message(message_id: message_id)
     
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert response["status"]
     assert_equal "Message deleted successfully", response["message"]
     assert_equal message_id, response["data"]["message_id"]
   end

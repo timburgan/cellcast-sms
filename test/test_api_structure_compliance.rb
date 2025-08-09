@@ -109,13 +109,13 @@ class TestAPIStructureCompliance < Minitest::Test
   end
 
   def test_convenience_method_response_wrapping
-    # Test that convenience method properly wraps response
+    # Test that convenience method properly returns raw response
     message_id = "sandbox_message_456"
     response = @client.cancel_message(message_id: message_id)
     
-    # Should return a Response wrapper object
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    # Should return raw Hash response, not wrapper object
+    assert_instance_of Hash, response
+    assert response["status"]
     
     # Should have access to underlying data
     assert_equal "Message deleted successfully", response["message"]

@@ -16,10 +16,10 @@ class TestConvenience < Minitest::Test
       from: "MyBrand"
     )
 
-    assert_instance_of Cellcast::SMS::SendMessageResponse, response
-    assert response.success?
-    assert response.message_id
-    assert_equal "queued", response.status
+    assert_instance_of Hash, response
+    assert response["status"]
+    assert response.dig("data", "queueResponse", 0, "MessageId")
+    assert_equal "Request is being processed", response["message"]
   end
 
   def test_quick_send_special_test_number_success
@@ -29,10 +29,10 @@ class TestConvenience < Minitest::Test
       from: "MyBrand"
     )
 
-    assert_instance_of Cellcast::SMS::SendMessageResponse, response
-    assert response.success?
-    assert response.message_id
-    assert_equal "queued", response.status
+    assert_instance_of Hash, response
+    assert response["status"]
+    assert response.dig("data", "queueResponse", 0, "MessageId")
+    assert_equal "Request is being processed", response["message"]
   end
 
   def test_quick_send_special_test_number_failed
@@ -42,9 +42,9 @@ class TestConvenience < Minitest::Test
       from: "MyBrand"
     )
 
-    assert_instance_of Cellcast::SMS::SendMessageResponse, response
-    refute response.success?
-    assert_equal "failed", response.status
+    assert_instance_of Hash, response
+    refute response["status"]
+    assert_equal "Some contacts failed to process", response["message"]
   end
 
   def test_broadcast
@@ -54,11 +54,11 @@ class TestConvenience < Minitest::Test
       from: "MyBrand"
     )
 
-    assert_instance_of Cellcast::SMS::BulkMessageResponse, response
-    assert response.success?
-    assert_equal 2, response.total_count
-    assert_equal 2, response.successful_count
-    assert_equal 0, response.failed_count
+    assert_instance_of Hash, response
+    assert response["status"]
+    assert_equal 2, response.dig("data", "totalValidContact")
+    assert_equal 0, response.dig("data", "totalInvalidContact")
+    assert_equal 2, response.dig("data", "queueResponse").length
   end
 
   def test_broadcast_mixed_results
@@ -68,43 +68,43 @@ class TestConvenience < Minitest::Test
       from: "MyBrand"
     )
 
-    assert_instance_of Cellcast::SMS::BulkMessageResponse, response
-    assert response.success?
-    assert_equal 2, response.total_count
-    assert_equal 1, response.successful_count
-    assert_equal 1, response.failed_count
+    assert_instance_of Hash, response
+    assert response["status"]
+    data = response["data"]
+    assert_equal 1, data["totalValidContact"]
+    assert_equal 1, data["totalInvalidContact"]
+    assert_equal 1, data["queueResponse"].length
+    assert_equal 1, data["invalidContacts"].length
   end
 
   def test_cancel_message
-    # First send a message to get an ID
-    send_response = @client.quick_send(to: "+15550000000", message: "Test")
-    message_id = send_response.message_id
+    # Test with sandbox message ID 
+    response = @client.cancel_message(message_id: "sandbox_message_456")
 
-    response = @client.cancel_message(message_id: message_id)
-
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert response["status"]
+    assert_equal "Message deleted successfully", response["message"]
   end
 
   def test_verify_token
     response = @client.verify_token
 
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert response["status"]
   end
 
   def test_balance
     response = @client.balance
 
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert response["status"]
   end
 
   def test_usage_report
     response = @client.usage_report
 
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert response["status"]
   end
 
   def test_register_business
@@ -114,8 +114,8 @@ class TestConvenience < Minitest::Test
       contact_info: { email: "test@example.com", phone: "+1234567890" }
     )
 
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert response["status"]
   end
 
   def test_register_number
@@ -124,8 +124,8 @@ class TestConvenience < Minitest::Test
       purpose: "Customer support"
     )
 
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert response["status"]
   end
 
   def test_verify_number

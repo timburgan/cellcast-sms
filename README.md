@@ -43,7 +43,10 @@ response = client.quick_send(
   from: 'YourBrand'
 )
 
-puts "Message sent! ID: #{response.message_id}" if response.success?
+if response['status']
+  message_id = response.dig('data', 'queueResponse', 0, 'MessageId')
+  puts "Message sent! ID: #{message_id}"
+end
 
 # Send to multiple recipients
 broadcast = client.broadcast(
@@ -51,19 +54,18 @@ broadcast = client.broadcast(
   message: 'Important announcement!'
 )
 
-puts "Sent to #{broadcast.successful_count} recipients"
-puts "Total cost: $#{broadcast.total_cost}"
+puts "Sent to #{broadcast.dig('data', 'totalValidContact')} recipients"
 
 # Check account balance
 balance = client.balance
-puts "Current balance: $#{balance.data['balance']}"
+puts "Current balance: $#{balance.dig('data', 'balance') || 'Unknown'}"
 
 # Get usage statistics
 usage = client.usage_report
-puts "Messages sent this month: #{usage.data['messages_sent']}"
+puts "Messages sent this month: #{usage.dig('data', 'messages_sent') || 'Unknown'}"
 
 # Register a business name for sender ID
-client.sender_id.register_business_name(
+registration_response = client.sender_id.register_business_name(
   business_name: 'Your Company Ltd',
   business_registration: 'REG123456',
   contact_info: {
@@ -71,6 +73,7 @@ client.sender_id.register_business_name(
     phone: '+1234567890'
   }
 )
+puts "Registration status: #{registration_response['status'] ? 'Success' : 'Failed'}"
 ```
 
 ## Error Handling
@@ -112,19 +115,25 @@ response = client.sms.send_message(
   sender_id: 'YourBrand'
 )
 
+# All methods now return raw API responses as Hash objects
+puts "Status: #{response['status']}"
+puts "Message ID: #{response.dig('data', 'queueResponse', 0, 'MessageId')}"
+
 # Cancel a scheduled message
-client.cancel_message(message_id: 'msg_123456789')
+cancel_response = client.cancel_message(message_id: 'msg_123456789')
+puts "Cancelled: #{cancel_response['status']}"
 
 # Account operations
 balance = client.account.get_account_balance
 usage = client.account.get_usage_report
 
 # Sender ID management
-client.sender_id.register_business_name(
+registration = client.sender_id.register_business_name(
   business_name: 'Your Company Ltd',
   business_registration: 'REG123456',
   contact_info: { email: 'contact@yourcompany.com', phone: '+1234567890' }
 )
+puts "Registration: #{registration['message']}"
 
 client.sender_id.register_custom_number(
   phone_number: '+1234567890',
