@@ -57,7 +57,7 @@ sequenceDiagram
     Client->>Retry: execute_with_retry()
     
     loop Retry Logic (max 3 attempts)
-        Retry->>API: POST /sms/send
+        Retry->>API: POST /api/v1/gateway
         
         alt Success (200/201)
             API-->>Retry: Success response
@@ -88,57 +88,29 @@ sequenceDiagram
     end
 ```
 
-### Incoming Messages Flow
+### Account Balance Flow
 
 ```mermaid
 sequenceDiagram
     participant App as Your Application
     participant Client as Cellcast Client
     participant API as Cellcast API
-    participant Webhook as Webhook Endpoint
 
-    Note over App,Webhook: Real-time Message Reception
-
-    API->>Webhook: POST webhook (sms.received event)
-    Webhook->>App: Process incoming message
+    Note over App,API: Check Account Balance
     
-    Note over App,API: Polling for Messages
+    App->>Client: balance()
+    Client->>API: GET /api/v1/apiClient/account
+    API-->>Client: Account balance data
+    Client->>Client: Create Response object
+    Client-->>App: Return balance information
     
-    App->>Client: unread_messages()
-    Client->>API: GET /sms/incoming?unread_only=true
-    API-->>Client: List of unread messages
-    Client->>Client: Create IncomingMessagesList
-    Client-->>App: Return structured response
+    Note over App,API: Get Usage Statistics
     
-    App->>Client: mark_as_read(message_ids)
-    Client->>API: POST /sms/mark-read
-    API-->>Client: Success confirmation
-    Client-->>App: Return success status
-```
-
-### Bidirectional Conversation Flow
-
-```mermaid
-sequenceDiagram
-    participant App as Your Application
-    participant Client as Cellcast Client
-    participant API as Cellcast API
-    participant Customer as Customer Phone
-
-    App->>Client: quick_send(to: customer, message: "Hello!")
-    Client->>API: POST /sms/send
-    API-->>Client: message_id: "msg_123"
-    API->>Customer: SMS: "Hello!"
-    
-    Customer->>API: SMS Reply: "Hi there!"
-    API->>App: Webhook: sms.reply event
-    
-    App->>Client: get_replies(original_message_id: "msg_123")
-    Client->>API: GET /sms/replies/msg_123
-    API-->>Client: List of replies
-    Client-->>App: Conversation history
-    
-    Note over App: Full conversation context available
+    App->>Client: usage_report()
+    Client->>API: GET /api/v2/report/message/quick-api-credit-usage
+    API-->>Client: Usage statistics
+    Client->>Client: Create Response object
+    Client-->>App: Return usage data
 ```
 
 ### Error Recovery Flow
@@ -184,44 +156,33 @@ begin
   # Send initial message
   response = client.quick_send(
     to: '+1234567890',
-    message: 'Welcome! Reply STOP to unsubscribe.',
+    message: 'Welcome! Your account has been created.',
     from: 'YourBrand'
   )
   
   puts "Message sent: #{response.message_id}"
   puts "Cost: $#{response.cost}"
   
-  # Monitor delivery
-  sleep(5)
-  if client.delivered?(message_id: response.message_id)
-    puts "Message delivered successfully"
-  else
-    status = client.sms.get_status(message_id: response.message_id)
-    puts "Status: #{status['status']}"
-  end
+  # Check account balance after sending
+  balance = client.balance
+  puts "Remaining balance: $#{balance.data['balance']}"
   
-  # Check for replies
-  replies = client.incoming.get_replies(
-    original_message_id: response.message_id,
-    limit: 10
-  )
-  
-  replies.each do |reply|
-    puts "Reply from #{reply['from']}: #{reply['message']}"
-    
-    # Handle unsubscribe
-    if reply['message'].upcase.include?('STOP')
-      # Add to suppression list (your business logic)
-      puts "Unsubscribe request from #{reply['from']}"
-    end
-  end
+  # Get usage statistics
+  usage = client.usage_report
+  puts "Messages sent this month: #{usage.data['messages_sent']}"
+  puts "Total cost this month: $#{usage.data['total_cost']}"
 
 rescue Cellcast::SMS::ValidationError => e
   puts "Validation error: #{e.message}"
 rescue Cellcast::SMS::RateLimitError => e
   puts "Rate limited. Retry after: #{e.retry_after} seconds"
+  puts "Attempted URL: #{e.requested_url}"
 rescue Cellcast::SMS::NetworkError => e
-  puts "Network error. Message may have been sent. Check status."
+  puts "Network error. Message may have been sent. Check account balance."
+  puts "Attempted URL: #{e.requested_url}"
+rescue Cellcast::SMS::APIError => e
+  puts "API error: #{e.message}"
+  puts "Attempted URL: #{e.requested_url}"
 end
 ```
 
@@ -253,106 +214,64 @@ begin
     puts "Failed to send to #{failure[:to]}: #{failure[:error]}"
   end
   
+  # Check remaining balance after bulk send
+  balance = client.balance
+  puts "Remaining balance: $#{balance.data['balance']}"
+  
 rescue Cellcast::SMS::APIError => e
   puts "API Error: #{e.message}"
   puts "Status: #{e.status_code}"
+  puts "Attempted URL: #{e.requested_url}"
   puts "Response: #{e.response_body}"
 end
 ```
 
-### Advanced Incoming Message Management
+### Sender ID Management Example
 
 ```ruby
-# Process incoming messages with comprehensive filtering
-incoming_params = {
-  limit: 50,
-  unread_only: true,
-  date_from: (Date.today - 7).to_s,  # Last 7 days
-  sender_id: 'YourBrand'
-}
-
-incoming_messages = client.incoming.list_incoming(incoming_params)
-
-# Categorize and process messages
-replies = []
-new_conversations = []
-
-incoming_messages.each do |message|
-  if message['is_reply']
-    replies << message
-  else
-    new_conversations << message
-  end
-end
-
-# Process replies
-unless replies.empty?
-  puts "Processing #{replies.length} replies..."
-  
-  replies.each do |reply|
-    original_msg = client.sms.get_status(
-      message_id: reply['original_message_id']
-    )
-    
-    puts "Reply to '#{original_msg['message']}': #{reply['message']}"
-  end
-end
-
-# Process new conversations
-unless new_conversations.empty?
-  puts "Processing #{new_conversations.length} new conversations..."
-  
-  new_conversations.each do |message|
-    # Auto-respond to new conversations
-    auto_response = client.quick_send(
-      to: message['from'],
-      message: 'Thanks for contacting us! We will respond shortly.',
-      from: 'Support'
-    )
-    
-    puts "Auto-response sent: #{auto_response.message_id}"
-  end
-end
-
-# Mark all as read
-message_ids = incoming_messages.map { |msg| msg['message_id'] }
-client.incoming.mark_as_read(message_ids: message_ids)
-```
-
-### Webhook Integration Example
-
-```ruby
-# Configure comprehensive webhook
-webhook_config = {
-  url: 'https://yourapp.com/webhooks/cellcast',
-  events: [
-    'sms.sent',      # Message sent successfully
-    'sms.delivered', # Message delivered to recipient
-    'sms.failed',    # Message failed to send
-    'sms.received',  # New incoming message
-    'sms.reply'      # Reply to a sent message
-  ],
-  secret: ENV['WEBHOOK_SECRET']
-}
-
-client.webhook.configure_webhook(webhook_config)
-
-# Test webhook with each event type
-webhook_config[:events].each do |event_type|
-  test_result = client.webhook.test_webhook(event_type: event_type)
-  puts "#{event_type} test: #{test_result['status']}"
-end
-
-# Monitor webhook delivery
-logs = client.webhook.get_delivery_logs(limit: 100)
-failed_deliveries = logs.select { |log| log['status'] == 'failed' }
-
-# Retry failed deliveries
-failed_deliveries.each do |delivery|
-  retry_result = client.webhook.retry_delivery(
-    delivery_id: delivery['delivery_id']
+# Register a business name for sender ID
+begin
+  business_response = client.sender_id.register_business_name(
+    business_name: 'Your Company Ltd',
+    business_registration: 'REG123456',
+    contact_info: {
+      email: 'contact@yourcompany.com',
+      phone: '+1234567890',
+      address: '123 Business St, City'
+    }
   )
-  puts "Retry #{delivery['delivery_id']}: #{retry_result['status']}"
+  
+  puts "Business name registration: #{business_response['status']}"
+  puts "Application ID: #{business_response['application_id']}"
+  
+rescue Cellcast::SMS::APIError => e
+  puts "Registration failed: #{e.message}"
+  puts "Attempted URL: #{e.requested_url}"
+end
+
+# Register a custom phone number
+begin
+  number_response = client.sender_id.register_custom_number(
+    phone_number: '+1234567890',
+    purpose: 'Customer notifications and support'
+  )
+  
+  puts "Custom number registration: #{number_response['status']}"
+  puts "Verification required: #{number_response['verification_required']}"
+  
+  # If verification is required, verify with code
+  if number_response['verification_required']
+    verification_response = client.sender_id.verify_custom_number(
+      phone_number: '+1234567890',
+      verification_code: '123456'  # Code received via SMS
+    )
+    
+    puts "Verification result: #{verification_response['verified']}"
+  end
+  
+rescue Cellcast::SMS::APIError => e
+  puts "Number registration failed: #{e.message}"
+  puts "Attempted URL: #{e.requested_url}"
 end
 ```
 
@@ -412,48 +331,6 @@ response = client.sms.send_bulk(
 }
 ```
 
-#### Get Message Status
-```ruby
-status = client.sms.get_status(message_id: 'msg_123456789')
-```
-
-**Response Format:**
-```json
-{
-  "message_id": "msg_123456789",
-  "status": "delivered",
-  "sent_at": "2024-01-15T10:30:00Z",
-  "delivered_at": "2024-01-15T10:30:15Z",
-  "cost": 0.05,
-  "parts": 1,
-  "to": "+1234567890",
-  "from": "YourBrand"
-}
-```
-
-**Status Values:**
-- `queued`: Message accepted and queued for sending
-- `sent`: Message sent to carrier
-- `delivered`: Message delivered to recipient
-- `failed`: Message failed to send
-- `expired`: Message expired before delivery
-
-#### Get Delivery Report
-```ruby
-report = client.sms.get_delivery_report(message_id: 'msg_123456789')
-```
-
-#### List Sent Messages
-```ruby
-messages = client.sms.list_messages(
-  limit: 50,                   # Optional: 1-100, default 30
-  offset: 0,                   # Optional: pagination offset
-  date_from: '2024-01-01',     # Optional: YYYY-MM-DD format
-  date_to: '2024-01-31',       # Optional: YYYY-MM-DD format
-  status: 'delivered'          # Optional: filter by status
-)
-```
-
 #### Delete Message (Cancel Scheduled SMS)
 ```ruby
 # Delete a scheduled message before it's sent
@@ -493,62 +370,35 @@ response = client.cancel_message(message_id: 'msg_123456789')
 # Returns a wrapped Response object with success?, message, and data access
 ```
 
-### Incoming SMS Module (`client.incoming`)
+### Account Module (`client.account`)
 
-#### List Incoming Messages
+#### Get Account Balance
 ```ruby
-incoming = client.incoming.list_incoming(
-  limit: 50,                   # Optional: 1-100, default 30
-  offset: 0,                   # Optional: pagination offset
-  unread_only: true,           # Optional: filter unread messages
-  date_from: '2024-01-01',     # Optional: YYYY-MM-DD format
-  date_to: '2024-01-31',       # Optional: YYYY-MM-DD format
-  sender_id: 'YourBrand'       # Optional: filter by sender ID
-)
+balance = client.account.get_account_balance
 ```
 
 **Response Format:**
 ```json
 {
-  "messages": [
-    {
-      "message_id": "incoming_123456",
-      "from": "+1234567890",
-      "to": "YourBrand",
-      "message": "Hello!",
-      "received_at": "2024-01-15T10:30:00Z",
-      "is_reply": false,
-      "original_message_id": null,
-      "read": false
-    }
-  ],
-  "total": 1,
-  "limit": 50,
-  "offset": 0
+  "balance": 25.50,
+  "currency": "USD",
+  "last_updated": "2024-01-15T10:30:00Z"
 }
 ```
 
-#### Get Specific Incoming Message
+#### Get Usage Report
 ```ruby
-message = client.incoming.get_incoming_message(
-  message_id: 'incoming_123456'
-)
+usage = client.account.get_usage_report
 ```
 
-#### Mark Messages as Read
-```ruby
-client.incoming.mark_as_read(
-  message_ids: ['incoming_123456', 'incoming_789012']  # Array of message IDs (1-100)
-)
-```
-
-#### Get Replies to Sent Message
-```ruby
-replies = client.incoming.get_replies(
-  original_message_id: 'msg_123456789',  # Required: ID of original sent message
-  limit: 10,                             # Optional: 1-100, default 30
-  offset: 0                              # Optional: pagination offset
-)
+**Response Format:**
+```json
+{
+  "period": "monthly",
+  "messages_sent": 1250,
+  "total_cost": 62.50,
+  "last_updated": "2024-01-15T10:30:00Z"
+}
 ```
 
 ### Sender ID Module (`client.sender_id`)
@@ -582,96 +432,6 @@ response = client.sender_id.verify_custom_number(
 )
 ```
 
-#### List Sender IDs
-```ruby
-sender_ids = client.sender_id.list_sender_ids(
-  type: 'business_name',                 # Optional: 'business_name' or 'custom_number'
-  status: 'approved'                     # Optional: 'pending', 'approved', 'rejected'
-)
-```
-
-### Webhook Module (`client.webhook`)
-
-#### Configure Webhook
-```ruby
-response = client.webhook.configure_webhook(
-  url: 'https://yourapp.com/webhooks',   # Required: webhook endpoint URL
-  events: [                              # Required: array of event types
-    'sms.sent',
-    'sms.delivered', 
-    'sms.failed',
-    'sms.received',
-    'sms.reply'
-  ],
-  secret: 'your-webhook-secret'          # Optional: for signature verification
-)
-```
-
-**Webhook Event Payloads:**
-
-SMS Sent Event (`sms.sent`):
-```json
-{
-  "event": "sms.sent",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "data": {
-    "message_id": "msg_123456789",
-    "to": "+1234567890",
-    "from": "YourBrand",
-    "message": "Hello World!",
-    "status": "sent"
-  }
-}
-```
-
-SMS Received Event (`sms.received`):
-```json
-{
-  "event": "sms.received",
-  "timestamp": "2024-01-15T10:35:00Z",
-  "data": {
-    "message_id": "incoming_123456",
-    "from": "+1234567890",
-    "to": "YourBrand",
-    "message": "Hi there!",
-    "received_at": "2024-01-15T10:35:00Z",
-    "is_reply": false
-  }
-}
-```
-
-#### Test Webhook
-```ruby
-response = client.webhook.test_webhook(
-  event_type: 'sms.sent'                 # Required: event type to test
-)
-```
-
-#### Get Webhook Configuration
-```ruby
-config = client.webhook.get_webhook_config
-```
-
-#### Delete Webhook
-```ruby
-response = client.webhook.delete_webhook
-```
-
-#### Get Delivery Logs
-```ruby
-logs = client.webhook.get_delivery_logs(
-  limit: 100,                            # Optional: 1-100, default 30
-  offset: 0                              # Optional: pagination offset
-)
-```
-
-#### Retry Failed Delivery
-```ruby
-response = client.webhook.retry_delivery(
-  delivery_id: 'delivery_123456'         # Required: failed delivery ID
-)
-```
-
 ### Token Module (`client.token`)
 
 #### Verify Token
@@ -686,30 +446,6 @@ token_info = client.token.verify_token
   "token_id": "token_123456",
   "permissions": ["sms.send", "sms.receive", "webhook.manage"],
   "expires_at": "2024-12-31T23:59:59Z"
-}
-```
-
-#### Get Token Information
-```ruby
-info = client.token.get_token_info
-```
-
-#### Get Usage Statistics
-```ruby
-stats = client.token.get_usage_stats(
-  period: 'monthly'                      # Optional: 'daily', 'weekly', 'monthly'
-)
-```
-
-**Response Format:**
-```json
-{
-  "period": "monthly",
-  "messages_sent": 1250,
-  "messages_received": 85,
-  "total_cost": 62.50,
-  "webhook_deliveries": 1335,
-  "api_calls": 2847
 }
 ```
 
@@ -852,28 +588,6 @@ broadcast.failures          # => Array of failed sends with error details
 # Batch information
 broadcast.batch_id          # => "batch_789012345"
 broadcast.total_messages    # => 2
-```
-
-### IncomingMessagesList
-
-Returned by `unread_messages()` and similar convenience methods:
-
-```ruby
-unread = client.unread_messages(limit: 10)
-
-# Access messages
-unread.items.each do |message|
-  puts message.from          # Sender phone number
-  puts message.message       # Message content
-  puts message.received_at   # Timestamp
-  puts message.is_reply?     # Boolean - is this a reply?
-end
-
-# Pagination information
-unread.total              # => Total message count
-unread.limit              # => Current limit
-unread.offset             # => Current offset
-unread.has_more?          # => Boolean - more messages available?
 ```
 
 ## Testing & Development
@@ -1142,20 +856,17 @@ client = Cellcast.sms(api_key: ENV['CELLCAST_API_KEY'])
 client = Cellcast.sms(api_key: 'your-actual-api-key')
 ```
 
-### Webhook Security
+### Rate Limiting Awareness
 
 ```ruby
-# Configure webhook with secret for signature verification
-client.webhook.configure_webhook(
-  url: 'https://yourapp.com/webhooks',
-  events: ['sms.received'],
-  secret: ENV['WEBHOOK_SECRET']  # Use strong, random secret
-)
-
-# In your webhook handler:
-def verify_webhook_signature(payload, signature, secret)
-  expected = OpenSSL::HMAC.hexdigest('SHA256', secret, payload)
-  Rack::Utils.secure_compare("sha256=#{expected}", signature)
+# Handle rate limiting gracefully in high-volume scenarios
+begin
+  response = client.broadcast(to: large_recipient_list, message: 'Announcement')
+rescue Cellcast::SMS::RateLimitError => e
+  puts "Rate limited. Retry after: #{e.retry_after} seconds"
+  puts "Attempted URL: #{e.requested_url}"
+  sleep(e.retry_after)
+  # Retry the operation
 end
 ```
 
@@ -1205,18 +916,20 @@ phones.each do |phone|
 end
 ```
 
-### Webhook vs Polling
+### Account Balance Monitoring
 
 ```ruby
-# ✅ Efficient: Use webhooks for real-time processing
-client.setup_webhook(url: 'https://yourapp.com/webhooks')
-
-# ❌ Less efficient: Frequent polling
-loop do
-  sleep(30)
-  unread = client.unread_messages
-  # Process messages...
+# ✅ Efficient: Check balance periodically for cost control
+balance = client.balance
+if balance.data['balance'] < 10.0
+  puts "Warning: Low balance - $#{balance.data['balance']}"
+  # Send alert or top up account
 end
+
+# ✅ Efficient: Monitor usage patterns
+usage = client.usage_report
+puts "Usage this month: #{usage.data['messages_sent']} messages"
+puts "Average cost per message: $#{usage.data['total_cost'].to_f / usage.data['messages_sent']}"
 ```
 
 ### Connection Reuse
