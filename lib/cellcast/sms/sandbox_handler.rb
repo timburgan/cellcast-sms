@@ -16,12 +16,14 @@ module Cellcast
         "+15550000004" => :insufficient_credits,
       }.freeze
 
-      def initialize(logger: nil)
+      def initialize(logger: nil, base_url: "https://api.cellcast.com")
         @logger = logger
+        @base_url = base_url.chomp("/")
       end
 
       # Handle sandbox requests based on method and path
       def handle_request(method:, path:, body: nil)
+        @current_path = path  # Store current path for error reporting
         log_sandbox_request(method, path, body) if @logger
 
         case path
@@ -743,6 +745,7 @@ module Cellcast
           "Rate limit exceeded in sandbox mode",
           status_code: 429,
           response_body: error_response.to_json,
+          requested_url: build_full_url(@current_path),
           retry_after: 60
         )
       end
@@ -777,7 +780,8 @@ module Cellcast
         raise APIError.new(
           "Insufficient credits (sandbox mode)",
           status_code: 422,
-          response_body: error_response.to_json
+          response_body: error_response.to_json,
+          requested_url: build_full_url(@current_path)
         )
       end
 
@@ -846,7 +850,8 @@ module Cellcast
         raise APIError.new(
           "Message not found (sandbox mode)",
           status_code: 404,
-          response_body: error_response.to_json
+          response_body: error_response.to_json,
+          requested_url: build_full_url(@current_path)
         )
       end
 
@@ -873,7 +878,8 @@ module Cellcast
         raise APIError.new(
           "Cannot delete already sent message (sandbox mode)",
           status_code: 400,
-          response_body: error_response.to_json
+          response_body: error_response.to_json,
+          requested_url: build_full_url(@current_path)
         )
       end
 
@@ -900,7 +906,8 @@ module Cellcast
         raise APIError.new(
           "Delete operation failed (sandbox mode)",
           status_code: 500,
-          response_body: error_response.to_json
+          response_body: error_response.to_json,
+          requested_url: build_full_url(@current_path)
         )
       end
 
@@ -931,13 +938,19 @@ module Cellcast
         raise APIError.new(
           "Endpoint not found: #{path} (sandbox mode)",
           status_code: 404,
-          response_body: error_response.to_json
+          response_body: error_response.to_json,
+          requested_url: build_full_url(path)
         )
       end
 
       def log_sandbox_request(method, path, body)
         @logger.info("Sandbox request: #{method.upcase} #{path}")
         @logger.debug("Sandbox request body: #{body}") if body
+      end
+
+      def build_full_url(path)
+        return "#{@base_url}/#{path.gsub(%r{^/}, '')}" if path
+        @base_url
       end
     end
   end

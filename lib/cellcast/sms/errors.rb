@@ -7,12 +7,13 @@ module Cellcast
     class AuthenticationError < Error; end
 
     class APIError < Error
-      attr_reader :status_code, :response_body
+      attr_reader :status_code, :response_body, :requested_url
 
-      def initialize(message, status_code: nil, response_body: nil)
+      def initialize(message, status_code: nil, response_body: nil, requested_url: nil)
         super(message)
         @status_code = status_code
         @response_body = response_body
+        @requested_url = requested_url
       end
     end
 
@@ -21,8 +22,8 @@ module Cellcast
     class RateLimitError < APIError
       attr_reader :retry_after
 
-      def initialize(message, status_code: nil, response_body: nil, retry_after: nil)
-        super(message, status_code: status_code, response_body: response_body)
+      def initialize(message, status_code: nil, response_body: nil, requested_url: nil, retry_after: nil)
+        super(message, status_code: status_code, response_body: response_body, requested_url: requested_url)
         @retry_after = retry_after
       end
     end

@@ -60,7 +60,7 @@ module Cellcast
       private
 
       def handle_sandbox_request(method:, path:, body: nil)
-        @sandbox_handler ||= SandboxHandler.new(logger: config.logger)
+        @sandbox_handler ||= SandboxHandler.new(logger: config.logger, base_url: base_url)
         @sandbox_handler.handle_request(method: method, path: path, body: body)
       end
 
@@ -78,15 +78,15 @@ module Cellcast
         request = build_request(method, uri, body, headers)
 
         response = http.request(request)
-        handle_response(response)
+        handle_response(response, uri.to_s)
       rescue Net::OpenTimeout, Net::ReadTimeout => e
-        raise TimeoutError, "Request timed out: #{e.message}"
+        raise TimeoutError, "Request timed out for #{uri}: #{e.message}"
       rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, SocketError => e
-        raise ConnectionError, "Connection failed: #{e.message}"
+        raise ConnectionError, "Connection failed for #{uri}: #{e.message}"
       rescue OpenSSL::SSL::SSLError => e
-        raise SSLError, "SSL error: #{e.message}"
+        raise SSLError, "SSL error for #{uri}: #{e.message}"
       rescue StandardError => e
-        raise NetworkError, "Network error: #{e.message}"
+        raise NetworkError, "Network error for #{uri}: #{e.message}"
       end
 
       def build_uri(path)
@@ -120,35 +120,40 @@ module Cellcast
         request
       end
 
-      def handle_response(response)
+      def handle_response(response, requested_url)
         case response.code.to_i
         when 200..299
           parse_response_body(response.body)
         when 401
-          raise AuthenticationError, "Invalid API key or unauthorized access. Please check your API key at https://dashboard.cellcast.com/api-keys"
+          raise AuthenticationError, "Invalid API key or unauthorized access for #{requested_url}. Please check your API key at https://dashboard.cellcast.com/api-keys"
         when 429
           retry_after = extract_retry_after(response)
-          message = "Rate limit exceeded. "
+          message = "Rate limit exceeded for #{requested_url}. "
           message += retry_after ? "Retry after #{retry_after} seconds." : "Please wait before making more requests."
           raise RateLimitError.new(message,
                                    status_code: response.code.to_i,
                                    response_body: response.body,
+                                   requested_url: requested_url,
                                    retry_after: retry_after)
         when 400..499
           error_details = parse_error_details(response.body)
-          message = "Client error: #{response.message}"
+          message = "Client error for #{requested_url}: #{response.message}"
           message += ". #{error_details}" if error_details
+          message += ". This may indicate that the API endpoint has changed - please report this issue with the attempted URL."
           raise APIError.new(message,
                              status_code: response.code.to_i,
-                             response_body: response.body)
+                             response_body: response.body,
+                             requested_url: requested_url)
         when 500..599
-          raise ServerError.new("Server error: #{response.message}. Please try again later or contact support if the issue persists.",
+          raise ServerError.new("Server error for #{requested_url}: #{response.message}. Please try again later or contact support if the issue persists.",
                                 status_code: response.code.to_i,
-                                response_body: response.body)
+                                response_body: response.body,
+                                requested_url: requested_url)
         else
-          raise APIError.new("Unexpected response: #{response.code} #{response.message}",
+          raise APIError.new("Unexpected response for #{requested_url}: #{response.code} #{response.message}. This may indicate an API change - please report this issue.",
                              status_code: response.code.to_i,
-                             response_body: response.body)
+                             response_body: response.body,
+                             requested_url: requested_url)
         end
       end
 
