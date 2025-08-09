@@ -19,12 +19,15 @@ begin
     from: 'YourBrand'
   )
   
-  if response.success?
+  if response['status']
     puts "✅ Message sent successfully!"
-    puts "   Message ID: #{response.message_id}"
-    puts "   Status: #{response.status}"
-    puts "   Cost: $#{response.cost}"
-    puts "   Parts: #{response.parts}"
+    queue_response = response.dig('data', 'queueResponse', 0)
+    if queue_response
+      puts "   Message ID: #{queue_response['MessageId']}"
+      puts "   Result: #{queue_response['Result']}"
+      puts "   Contact: #{queue_response['Contact']}"
+    end
+    puts "   API Message: #{response['message']}"
   end
   
 rescue Cellcast::SMS::ValidationError => e
@@ -46,15 +49,24 @@ begin
   )
   
   puts "📢 Broadcast Results:"
-  puts "   Total recipients: #{broadcast_response.total_count}"
-  puts "   Successful sends: #{broadcast_response.successful_count}"
-  puts "   Failed sends: #{broadcast_response.failed_count}"
-  puts "   Total cost: $#{broadcast_response.total_cost}"
   
-  # Check individual message status
-  broadcast_response.messages.each_with_index do |msg, index|
-    status_icon = msg.success? ? "✅" : "❌"
-    puts "   #{status_icon} #{recipients[index]}: #{msg.status}"
+  if broadcast_response['status']
+    data = broadcast_response['data']
+    puts "   Total valid contacts: #{data['totalValidContact']}"
+    puts "   Total invalid contacts: #{data['totalInvalidContact']}"
+    puts "   API Message: #{broadcast_response['message']}"
+    
+    # Show individual queue responses
+    data['queueResponse'].each do |queue_item|
+      puts "   ✅ #{queue_item['Contact']}: #{queue_item['Result']}"
+    end
+    
+    # Show invalid contacts
+    data['invalidContacts'].each do |invalid|
+      puts "   ❌ #{invalid}: Invalid contact"
+    end
+  else
+    puts "   ❌ Broadcast failed: #{broadcast_response['message']}"
   end
   
 rescue Cellcast::SMS::ValidationError => e
@@ -67,13 +79,13 @@ puts "\n=== Example 3: Account Management ==="
 
 # Check account balance
 balance = client.balance
-puts "💰 Current balance: $#{balance.data['balance']}"
+puts "💰 Current balance: $#{balance.dig('data', 'balance') || 'Unknown'}"
 
 # Get usage statistics
 usage = client.usage_report
 puts "📊 Usage Statistics:"
-puts "   Messages sent: #{usage.data['messages_sent']}"
-puts "   Total cost: $#{usage.data['total_cost']}"
+puts "   Messages sent: #{usage.dig('data', 'messages_sent') || 'Unknown'}"
+puts "   Total cost: $#{usage.dig('data', 'total_cost') || 'Unknown'}"
 
 # Example 4: Sender ID Management
 puts "\n=== Example 4: Sender ID Management ==="
@@ -89,7 +101,8 @@ begin
     }
   )
   
-  puts "🏢 Business registration status: #{business_response['status']}"
+  puts "🏢 Business registration status: #{business_response['status'] ? 'Success' : 'Failed'}"
+  puts "   Message: #{business_response['message']}"
   
   # Register a custom number
   number_response = client.sender_id.register_custom_number(
@@ -97,7 +110,8 @@ begin
     purpose: 'Customer support notifications'
   )
   
-  puts "📞 Custom number registration: #{number_response['status']}"
+  puts "📞 Custom number registration: #{number_response['status'] ? 'Success' : 'Failed'}"
+  puts "   Message: #{number_response['message']}"
   
 rescue Cellcast::SMS::APIError => e
   puts "❌ Registration Error: #{e.message}"
@@ -111,10 +125,11 @@ begin
   # Cancel a scheduled message
   cancel_response = client.cancel_message(message_id: 'msg_example_123')
   
-  if cancel_response.success?
+  if cancel_response['status']
     puts "✅ Message cancelled successfully"
+    puts "   Message: #{cancel_response['message']}"
   else
-    puts "❌ Could not cancel message: #{cancel_response.message}"
+    puts "❌ Could not cancel message: #{cancel_response['message']}"
   end
   
 rescue Cellcast::SMS::APIError => e
@@ -161,31 +176,6 @@ rescue Cellcast::SMS::NetworkError => e
   # Automatic retries would have already been attempted
 end
 
-# Example 6: Simple webhook setup
-puts "\n=== Example 6: Webhook Setup ==="
-
-begin
-  # Easy webhook setup for all SMS events
-  webhook_response = client.setup_webhook(
-    url: 'https://yourapp.com/webhooks/cellcast'
-  )
-  
-  if webhook_response.success?
-    puts "✅ Webhook configured successfully"
-    puts "   URL: #{webhook_response['url']}"
-    puts "   Events: #{webhook_response['events'].join(', ')}"
-  end
-  
-  # Test the webhook
-  test_result = client.test_webhook
-  puts "🧪 Webhook test: #{test_result.success? ? 'passed' : 'failed'}"
-  
-rescue Cellcast::SMS::ValidationError => e
-  puts "❌ Webhook Configuration Error:"
-  puts "   #{e.message}"
-  # "URL must be HTTP or HTTPS, got . Example: https://yourapp.com/webhooks"
-end
-
 # Example 7: Custom configuration for advanced use cases
 puts "\n=== Example 7: Custom Configuration ==="
 
@@ -193,10 +183,6 @@ puts "\n=== Example 7: Custom Configuration ==="
 config = Cellcast.configure do |c|
   c.open_timeout = 60        # Longer connection timeout
   c.read_timeout = 120       # Longer read timeout  
-  c.max_retries = 5          # More retry attempts
-  c.base_delay = 2.0         # Longer base delay
-  c.max_delay = 60.0         # Longer max delay
-  c.retry_on_rate_limit = true # Always retry rate limits
   c.logger = Logger.new(STDOUT) # Enable detailed logging
 end
 
@@ -215,11 +201,11 @@ response = enterprise_client.quick_send(
 )
 
 puts "\n=== Summary ==="
-puts "✨ The improved architecture provides:"
+puts "✨ The updated gem architecture provides:"
 puts "   • Simple convenience methods for common operations"
-puts "   • Structured response objects instead of raw hashes"
+puts "   • Raw API responses for direct access to all data"
 puts "   • Helpful error messages with actionable guidance"
 puts "   • Comprehensive test coverage for reliability"
-puts "   • Backward compatibility with full API access"
+puts "   • Direct alignment with official Cellcast API"
 puts "   • Robust retry logic with exponential backoff"
 puts "   • Extensive error handling for all failure modes"
