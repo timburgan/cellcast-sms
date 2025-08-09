@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# Example usage of the improved Cellcast SMS gem architecture
-# This demonstrates the simplified developer experience while maintaining full functionality
+# Example usage of the Cellcast SMS gem with official API endpoints only
+# This demonstrates SMS sending, account management, and sender ID registration
 
 require 'cellcast'
 
@@ -62,60 +62,69 @@ rescue Cellcast::SMS::ValidationError => e
   # e.g., "Message too long (1650/1600 characters). Consider splitting into multiple messages."
 end
 
-# Example 3: Delivery tracking made simple
-puts "\n=== Example 3: Delivery Tracking ==="
+# Example 3: Account Management
+puts "\n=== Example 3: Account Management ==="
 
-message_id = "msg_example_123"
+# Check account balance
+balance = client.balance
+puts "💰 Current balance: $#{balance.data['balance']}"
 
-# Simple boolean check
-if client.delivered?(message_id: message_id)
-  puts "✅ Message was delivered successfully"
-else
-  # Get detailed status with structured response
-  status = client.check_status(message_id: message_id)
+# Get usage statistics
+usage = client.usage_report
+puts "📊 Usage Statistics:"
+puts "   Messages sent: #{usage.data['messages_sent']}"
+puts "   Total cost: $#{usage.data['total_cost']}"
+
+# Example 4: Sender ID Management
+puts "\n=== Example 4: Sender ID Management ==="
+
+begin
+  # Register a business name
+  business_response = client.sender_id.register_business_name(
+    business_name: 'Your Company Ltd',
+    business_registration: 'REG123456',
+    contact_info: {
+      email: 'contact@yourcompany.com',
+      phone: '+1234567890'
+    }
+  )
   
-  if status.pending?
-    puts "⏳ Message is still being processed (#{status.status})"
-  elsif status.failed?
-    puts "❌ Message failed to deliver: #{status.failed_reason}"
+  puts "🏢 Business registration status: #{business_response['status']}"
+  
+  # Register a custom number
+  number_response = client.sender_id.register_custom_number(
+    phone_number: '+1234567890',
+    purpose: 'Customer support notifications'
+  )
+  
+  puts "📞 Custom number registration: #{number_response['status']}"
+  
+rescue Cellcast::SMS::APIError => e
+  puts "❌ Registration Error: #{e.message}"
+  puts "   Attempted URL: #{e.requested_url}"
+end
+
+# Example 5: Message Cancellation
+puts "\n=== Example 5: Message Cancellation ==="
+
+begin
+  # Cancel a scheduled message
+  cancel_response = client.cancel_message(message_id: 'msg_example_123')
+  
+  if cancel_response.success?
+    puts "✅ Message cancelled successfully"
+  else
+    puts "❌ Could not cancel message: #{cancel_response.message}"
   end
-end
-
-# Example 4: Incoming messages with conversation tracking
-puts "\n=== Example 4: Incoming Messages ==="
-
-# Get unread messages with structured responses
-unread = client.unread_messages(limit: 10)
-
-puts "📥 You have #{unread.unread_count} unread messages:"
-
-unread.items.each do |message|
-  puts "   From: #{message.from}"
-  puts "   Message: #{message.message}"
-  puts "   Received: #{message.received_at}"
   
-  if message.is_reply?
-    puts "   📞 This is a reply to message: #{message.original_message_id}"
-    
-    # Get conversation history
-    conversation = client.conversation_history(
-      original_message_id: message.original_message_id
-    )
-    puts "   💬 Part of #{conversation.total} message conversation"
-  end
-  
-  puts "   ---"
+rescue Cellcast::SMS::APIError => e
+  puts "❌ Cancellation Error: #{e.message}"
+  puts "   This may mean the message was already sent"
+  puts "   Attempted URL: #{e.requested_url}"
 end
 
-# Mark messages as read easily
-if unread.items.any?
-  message_ids = unread.items.map(&:message_id)
-  client.mark_all_read(message_ids: message_ids)
-  puts "✅ Marked #{message_ids.length} messages as read"
-end
-
-# Example 5: Robust error handling with helpful messages
-puts "\n=== Example 5: Error Handling ==="
+# Example 6: Robust error handling with helpful messages
+puts "\n=== Example 6: Error Handling ==="
 
 begin
   # This will demonstrate various error types with helpful messages
@@ -134,6 +143,7 @@ rescue Cellcast::SMS::AuthenticationError => e
 rescue Cellcast::SMS::RateLimitError => e
   puts "⏰ Rate Limited:"
   puts "   #{e.message}"
+  puts "   Attempted URL: #{e.requested_url}"
   if e.retry_after
     puts "   Retry after: #{e.retry_after} seconds"
   end
@@ -141,11 +151,13 @@ rescue Cellcast::SMS::RateLimitError => e
 rescue Cellcast::SMS::ServerError => e
   puts "🔧 Server Error:"
   puts "   #{e.message}"
+  puts "   Attempted URL: #{e.requested_url}"
   # "Server error: Internal Server Error. Please try again later or contact support if the issue persists."
   
 rescue Cellcast::SMS::NetworkError => e
   puts "🌐 Network Error:"
   puts "   #{e.message}"
+  puts "   Attempted URL: #{e.requested_url}"
   # Automatic retries would have already been attempted
 end
 

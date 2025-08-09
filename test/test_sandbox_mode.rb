@@ -61,76 +61,63 @@ class TestSandboxMode < Minitest::Test
     assert_equal 0.1, response.total_cost
   end
 
-  def test_sandbox_message_status
-    status_response = @client.check_status(message_id: "test_delivered_msg")
-    assert_equal "test_delivered_msg", status_response.message_id
-    assert_equal "delivered", status_response.status
-    assert status_response.delivered?
-    refute status_response.failed?
-    refute status_response.pending?
+  def test_sandbox_token_verification
+    response = @client.verify_token
+    assert response.success?
+    assert response.raw_response["data"]["token"]
   end
 
-  def test_sandbox_failed_message_status
-    status_response = @client.check_status(message_id: "test_fail_msg")
-    assert_equal "test_fail_msg", status_response.message_id
-    assert_equal "failed", status_response.status
-    refute status_response.delivered?
-    assert status_response.failed?
-    refute status_response.pending?
+  def test_sandbox_account_balance
+    response = @client.balance
+    assert response.success?
+    balance_data = response.raw_response["data"]
+    assert balance_data["balance"]
+    assert balance_data["currency"]
   end
 
-  def test_sandbox_pending_message_status
-    status_response = @client.check_status(message_id: "test_pending_msg")
-    assert_equal "test_pending_msg", status_response.message_id
-    assert_equal "sent", status_response.status
-    refute status_response.delivered?
-    refute status_response.failed?
-    assert status_response.pending?
+  def test_sandbox_usage_report
+    response = @client.usage_report
+    assert response.success?
+    usage_data = response.raw_response["data"]
+    assert usage_data["total_messages"]
+    assert usage_data["total_cost"]
   end
 
-  def test_sandbox_unread_messages
-    unread = @client.unread_messages
-    assert_equal 1, unread.items.length
-
-    message = unread.items.first
-    assert_equal "+15551234567", message.from
-    assert_equal "Thanks for the update!", message.message
-    refute message.read?
-    assert message.is_reply?
-  end
-
-  def test_sandbox_conversation_history
-    history = @client.conversation_history(original_message_id: "test_msg_123")
-    assert_equal 1, history.items.length
-
-    reply = history.items.first
-    assert_equal "test_msg_123", reply.original_message_id
-    assert reply.is_reply?
-  end
-
-  def test_sandbox_webhook_setup
-    response = @client.setup_webhook(
-      url: "https://example.com/webhook",
-      events: ["sms.delivered", "sms.received"]
+  def test_sandbox_register_business
+    response = @client.register_business(
+      business_name: "Test Business",
+      business_registration: "ABN123456789",
+      contact_info: { email: "test@example.com", phone: "+1234567890" }
     )
-
+    
     assert response.success?
-    webhook_data = response.raw_response
-    assert_equal "https://example.com/webhook", webhook_data["url"]
-    assert_equal ["sms.delivered", "sms.received"], webhook_data["events"]
-    refute_nil webhook_data["webhook_id"]
+    business_data = response.raw_response["data"]
+    assert_equal "Test Business", business_data["business_name"]
+    assert_equal "pending_approval", business_data["status"]
   end
 
-  def test_sandbox_webhook_test
-    response = @client.test_webhook
+  def test_sandbox_register_number
+    response = @client.register_number(
+      phone_number: "+1234567890",
+      purpose: "Customer support"
+    )
+    
     assert response.success?
-    assert response.raw_response["test_sent"]
+    number_data = response.raw_response["data"]
+    assert_equal "+1234567890", number_data["phone_number"]
+    assert_equal "pending_verification", number_data["status"]
   end
 
-  def test_sandbox_mark_all_read
-    response = @client.mark_all_read(message_ids: %w[msg1 msg2])
+  def test_sandbox_verify_number
+    response = @client.verify_number(
+      phone_number: "+1234567890",
+      verification_code: "123456"
+    )
+    
     assert response.success?
-    assert_equal 2, response.raw_response["marked_read"]
+    verify_data = response.raw_response["data"]
+    assert_equal "+1234567890", verify_data["phone_number"]
+    assert_equal "verified", verify_data["status"]
   end
 
   def test_regular_phone_number_defaults_to_success

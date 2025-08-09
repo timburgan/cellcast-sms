@@ -2,14 +2,18 @@
 
 module Cellcast
   module SMS
-    # Sender ID API endpoints implementation
-    # Following Sandi Metz rules: small focused class
+    # Business and Custom Number API endpoints implementation - only officially documented endpoints
+    # Based on official Cellcast API documentation:
+    # - POST api/v1/business/add (business name)
+    # - POST api/v1/customNumber/add (custom number)
+    # - POST api/v1/customNumber/verifyCustomNumber (verify custom number)
     class SenderIdApi
       def initialize(client)
         @client = client
       end
 
-      # Register a business name as sender ID
+      # Register a business name
+      # Official endpoint: POST https://api.cellcast.com/api/v1/business/add
       # @param business_name [String] The business name to register
       # @param business_registration [String] Business registration details
       # @param contact_info [Hash] Contact information
@@ -25,18 +29,11 @@ module Cellcast
           contact_info: contact_info,
         }
 
-        @client.request(method: :post, path: "sender-id/business-name", body: body)
+        @client.request(method: :post, path: "api/v1/business/add", body: body)
       end
 
-      # Get business name sender ID status
-      # @param sender_id [String] The sender ID to check
-      # @return [Hash] API response with status
-      def get_business_name_status(sender_id:)
-        validate_sender_id(sender_id)
-        @client.request(method: :get, path: "sender-id/business-name/#{sender_id}")
-      end
-
-      # Register a custom number as sender ID
+      # Register a custom number
+      # Official endpoint: POST https://api.cellcast.com/api/v1/customNumber/add
       # @param phone_number [String] The phone number to register
       # @param purpose [String] Purpose for the custom number
       # @return [Hash] API response
@@ -49,10 +46,11 @@ module Cellcast
           purpose: purpose,
         }
 
-        @client.request(method: :post, path: "sender-id/custom-number", body: body)
+        @client.request(method: :post, path: "api/v1/customNumber/add", body: body)
       end
 
       # Verify a custom number
+      # Official endpoint: POST https://api.cellcast.com/api/v1/customNumber/verifyCustomNumber
       # @param phone_number [String] The phone number to verify
       # @param verification_code [String] The verification code
       # @return [Hash] API response
@@ -65,27 +63,7 @@ module Cellcast
           verification_code: verification_code,
         }
 
-        @client.request(method: :post, path: "sender-id/verify-custom-number", body: body)
-      end
-
-      # Get custom number status
-      # @param phone_number [String] The phone number to check
-      # @return [Hash] API response with status
-      def get_custom_number_status(phone_number:)
-        validate_phone_number(phone_number)
-        @client.request(method: :get, path: "sender-id/custom-number/#{phone_number}")
-      end
-
-      # List all registered sender IDs
-      # @param type [String, nil] Filter by type ('business_name' or 'custom_number')
-      # @param status [String, nil] Filter by status
-      # @return [Hash] API response with sender ID list
-      def list_sender_ids(type: nil, status: nil)
-        params = build_list_params(type, status)
-        path = "sender-id/list"
-        path += "?#{params}" unless params.empty?
-
-        @client.request(method: :get, path: path)
+        @client.request(method: :post, path: "api/v1/customNumber/verifyCustomNumber", body: body)
       end
 
       private
@@ -110,10 +88,6 @@ module Cellcast
         raise ValidationError, "Contact info must include phone" unless contact_info.key?(:phone)
       end
 
-      def validate_sender_id(sender_id)
-        raise ValidationError, "Sender ID cannot be nil or empty" if sender_id.nil? || sender_id.strip.empty?
-      end
-
       def validate_phone_number(phone)
         raise ValidationError, "Phone number cannot be nil or empty" if phone.nil? || phone.strip.empty?
         raise ValidationError, "Phone number must be a string" unless phone.is_a?(String)
@@ -127,13 +101,6 @@ module Cellcast
       def validate_verification_code(code)
         raise ValidationError, "Verification code cannot be nil or empty" if code.nil? || code.strip.empty?
         raise ValidationError, "Verification code must be a string" unless code.is_a?(String)
-      end
-
-      def build_list_params(type, status)
-        params = []
-        params << "type=#{type}" if type
-        params << "status=#{status}" if status
-        params.join("&")
       end
     end
   end

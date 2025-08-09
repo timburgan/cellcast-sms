@@ -2,12 +2,13 @@
 
 > **Note**: This is an unofficial gem that wraps the [official Cellcast API](https://developer.cellcast.com). I built this for me own use to make my life easier.
 
-A Ruby gem for the Cellcast API with complete bidirectional SMS support. Send messages, receive replies, and manage conversations with a simple, developer-friendly interface.
+A Ruby gem for the Cellcast API focused on SMS sending, account management, and sender ID registration. Simple, reliable SMS delivery with a developer-friendly interface.
 
 ## Features
 
 - **Send SMS**: Individual messages and bulk broadcasts
-- **Receive SMS**: Incoming messages and replies with real-time webhooks
+- **Account Management**: Check balance and usage reports
+- **Sender ID Management**: Register business names and custom numbers
 - **Zero Configuration**: Sensible defaults with automatic retries and error handling
 - **Developer Friendly**: Structured response objects and helpful error messages  
 - **Ruby 3.3+**: Uses only Ruby standard library, no external dependencies
@@ -44,11 +45,6 @@ response = client.quick_send(
 
 puts "Message sent! ID: #{response.message_id}" if response.success?
 
-# Check delivery status
-if client.delivered?(message_id: response.message_id)
-  puts "Message delivered successfully!"
-end
-
 # Send to multiple recipients
 broadcast = client.broadcast(
   to: ['+1234567890', '+0987654321'],
@@ -58,18 +54,23 @@ broadcast = client.broadcast(
 puts "Sent to #{broadcast.successful_count} recipients"
 puts "Total cost: $#{broadcast.total_cost}"
 
-# Handle incoming messages and replies
-unread = client.unread_messages
-unread.items.each do |message|
-  puts "From #{message.from}: #{message.message}"
-  
-  if message.is_reply?
-    puts "This is a reply to message: #{message.original_message_id}"
-  end
-end
+# Check account balance
+balance = client.balance
+puts "Current balance: $#{balance.data['balance']}"
 
-# Set up webhook for real-time notifications
-client.setup_webhook(url: 'https://yourapp.com/webhooks')
+# Get usage statistics
+usage = client.usage_report
+puts "Messages sent this month: #{usage.data['messages_sent']}"
+
+# Register a business name for sender ID
+client.sender_id.register_business_name(
+  business_name: 'Your Company Ltd',
+  business_registration: 'REG123456',
+  contact_info: {
+    email: 'contact@yourcompany.com',
+    phone: '+1234567890'
+  }
+)
 ```
 
 ## Error Handling
@@ -84,9 +85,13 @@ rescue Cellcast::SMS::ValidationError => e
   # Example: "Phone number must be in international format (e.g., +1234567890)"
 rescue Cellcast::SMS::RateLimitError => e
   puts "Rate limited. Retry after: #{e.retry_after} seconds"
+  puts "Attempted URL: #{e.requested_url}"
 rescue Cellcast::SMS::NetworkError => e
   puts "Network error: #{e.message}"
   # Gem automatically retried 3 times with exponential backoff
+rescue Cellcast::SMS::APIError => e
+  puts "API error: #{e.message}"
+  puts "Attempted URL: #{e.requested_url}"
 end
 ```
 
@@ -107,11 +112,23 @@ response = client.sms.send_message(
   sender_id: 'YourBrand'
 )
 
-incoming = client.incoming.list_incoming(unread_only: true)
+# Cancel a scheduled message
+client.cancel_message(message_id: 'msg_123456789')
 
-client.webhook.configure_webhook(
-  url: 'https://yourapp.com/webhooks',
-  events: ['sms.sent', 'sms.delivered', 'sms.received', 'sms.reply']
+# Account operations
+balance = client.account.get_account_balance
+usage = client.account.get_usage_report
+
+# Sender ID management
+client.sender_id.register_business_name(
+  business_name: 'Your Company Ltd',
+  business_registration: 'REG123456',
+  contact_info: { email: 'contact@yourcompany.com', phone: '+1234567890' }
+)
+
+client.sender_id.register_custom_number(
+  phone_number: '+1234567890',
+  purpose: 'Customer notifications'
 )
 ```
 

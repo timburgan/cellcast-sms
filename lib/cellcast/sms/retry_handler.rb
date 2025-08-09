@@ -60,8 +60,9 @@ module Cellcast
       def self.log_retry(logger, error, attempt, delay)
         return unless logger
 
+        url_info = error.respond_to?(:requested_url) && error.requested_url ? " (URL: #{error.requested_url})" : ""
         logger.warn(
-          "Cellcast API request failed (attempt #{attempt}): #{error.class} - #{error.message}. " \
+          "Cellcast API request failed (attempt #{attempt}): #{error.class} - #{error.message}#{url_info}. " \
           "Retrying in #{delay.round(2)} seconds..."
         )
       end
