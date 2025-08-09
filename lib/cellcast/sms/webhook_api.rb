@@ -26,13 +26,13 @@ module Cellcast
         }
         body[:secret] = secret if secret
 
-        @client.request(method: :post, path: "webhooks/configure", body: body)
+        @client.request(method: :post, path: "api/v1/webhooks/configure", body: body)
       end
 
       # Get current webhook configuration
       # @return [Hash] API response with webhook configuration
       def get_webhook_config
-        @client.request(method: :get, path: "webhooks/config")
+        @client.request(method: :get, path: "api/v1/webhooks/config")
       end
 
       # Test webhook configuration by sending a test event
@@ -42,13 +42,13 @@ module Cellcast
         validate_event_type(event_type)
 
         body = { event_type: event_type }
-        @client.request(method: :post, path: "webhooks/test", body: body)
+        @client.request(method: :post, path: "api/v1/webhooks/test", body: body)
       end
 
       # Delete webhook configuration
       # @return [Hash] API response
       def delete_webhook
-        @client.request(method: :delete, path: "webhooks/config")
+        @client.request(method: :delete, path: "api/v1/webhooks/config")
       end
 
       # Get webhook delivery logs
@@ -59,7 +59,7 @@ module Cellcast
         validate_pagination_params(limit, offset)
 
         params = "limit=#{limit}&offset=#{offset}"
-        @client.request(method: :get, path: "webhooks/logs?#{params}")
+        @client.request(method: :get, path: "api/v1/webhooks/logs?#{params}")
       end
 
       # Retry failed webhook delivery
@@ -69,7 +69,7 @@ module Cellcast
         validate_delivery_id(delivery_id)
 
         body = { delivery_id: delivery_id }
-        @client.request(method: :post, path: "webhooks/retry", body: body)
+        @client.request(method: :post, path: "api/v1/webhooks/retry", body: body)
       end
 
       private

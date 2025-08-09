@@ -25,29 +25,31 @@ module Cellcast
         log_sandbox_request(method, path, body) if @logger
 
         case path
-        when %r{^sms/send$}
+        when %r{^api/v1/gateway$}
           handle_send_message(body)
-        when %r{^sms/bulk$}
+        when %r{^api/v1/gateway/bulk$}
           handle_bulk_send(body)
-        when %r{^sms/status/(.+)$}
+        when %r{^api/v1/gateway/status/(.+)$}
           handle_message_status(::Regexp.last_match(1))
-        when %r{^sms/delivery/(.+)$}
+        when %r{^api/v1/gateway/delivery/(.+)$}
           handle_delivery_report(::Regexp.last_match(1))
         when %r{^api/v1/gateway/messages/(.+)$}
           handle_delete_message(::Regexp.last_match(1), method)
-        when %r{^sms/incoming}
-          handle_incoming_messages
-        when %r{^sms/messages}
+        when %r{^api/v1/gateway/messages$}
           handle_list_messages
-        when %r{^sms/mark-read$}
+        when %r{^api/v1/incoming$}
+          handle_incoming_messages
+        when %r{^api/v1/incoming/(.+)$}
+          handle_get_incoming_message(::Regexp.last_match(1))
+        when %r{^api/v1/incoming/mark-read$}
           handle_mark_read(body)
-        when %r{^sms/replies/(.+)$}
+        when %r{^api/v1/incoming/replies/(.+)$}
           handle_replies(::Regexp.last_match(1))
-        when /^webhooks?/
+        when %r{^api/v1/webhooks}
           handle_webhook_request(method, path, body)
-        when /^sender-ids?/
+        when %r{^api/v1/sender-id}
           handle_sender_id_request(method, path, body)
-        when %r{^auth/}
+        when %r{^api/v1/user/token/}
           handle_token_request(method, path, body)
         else
           handle_unknown_endpoint(path)
@@ -247,6 +249,21 @@ module Cellcast
           "total" => 1,
           "limit" => 50,
           "offset" => 0,
+        }
+      end
+
+      def handle_get_incoming_message(message_id)
+        # Extract just the message ID part, ignoring query parameters  
+        message_id = message_id.split("?").first
+        
+        {
+          "id" => message_id,
+          "from" => "+15551234567",
+          "to" => "+15550987654",
+          "message" => "Thanks for the update!",
+          "received_at" => Time.now.utc.iso8601,
+          "read" => false,
+          "original_message_id" => "sandbox_msg_001",
         }
       end
 

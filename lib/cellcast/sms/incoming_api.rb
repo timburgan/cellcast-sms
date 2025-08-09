@@ -21,7 +21,7 @@ module Cellcast
       # @return [Hash] API response with incoming message list
       def list_incoming(limit: 50, offset: 0, date_from: nil, date_to: nil, sender_id: nil, unread_only: false)
         params = build_list_params(limit, offset, date_from, date_to, sender_id, unread_only)
-        path = "sms/incoming"
+        path = "api/v1/incoming"
         path += "?#{params}" unless params.empty?
 
         @client.request(method: :get, path: path)
@@ -32,7 +32,7 @@ module Cellcast
       # @return [Hash] API response with message details
       def get_incoming_message(message_id:)
         validate_message_id(message_id)
-        @client.request(method: :get, path: "sms/incoming/#{message_id}")
+        @client.request(method: :get, path: "api/v1/incoming/#{message_id}")
       end
 
       # Mark one or more incoming messages as read
@@ -42,7 +42,7 @@ module Cellcast
         validate_message_ids(message_ids)
 
         body = { message_ids: message_ids }
-        @client.request(method: :post, path: "sms/mark-read", body: body)
+        @client.request(method: :post, path: "api/v1/incoming/mark-read", body: body)
       end
 
       # Get replies to a specific sent message
@@ -55,7 +55,7 @@ module Cellcast
         validate_pagination_params(limit, offset)
 
         params = "limit=#{limit}&offset=#{offset}"
-        path = "sms/replies/#{original_message_id}?#{params}"
+        path = "api/v1/incoming/replies/#{original_message_id}?#{params}"
 
         @client.request(method: :get, path: path)
       end

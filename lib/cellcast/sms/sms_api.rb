@@ -22,7 +22,7 @@ module Cellcast
         validate_message(message)
 
         body = build_send_message_body(to, message, sender_id, options)
-        @client.request(method: :post, path: "sms/send", body: body)
+        @client.request(method: :post, path: "api/v1/gateway", body: body)
       end
 
       # Send bulk SMS messages
@@ -33,7 +33,7 @@ module Cellcast
         validate_bulk_messages(messages)
 
         body = build_bulk_message_body(messages, options)
-        @client.request(method: :post, path: "sms/bulk", body: body)
+        @client.request(method: :post, path: "api/v1/gateway/bulk", body: body)
       end
 
       # Get SMS message status
@@ -41,7 +41,7 @@ module Cellcast
       # @return [Hash] API response with message status
       def get_status(message_id:)
         validate_message_id(message_id)
-        @client.request(method: :get, path: "sms/status/#{message_id}")
+        @client.request(method: :get, path: "api/v1/gateway/status/#{message_id}")
       end
 
       # Get SMS delivery report
@@ -49,7 +49,7 @@ module Cellcast
       # @return [Hash] API response with delivery report
       def get_delivery_report(message_id:)
         validate_message_id(message_id)
-        @client.request(method: :get, path: "sms/delivery/#{message_id}")
+        @client.request(method: :get, path: "api/v1/gateway/delivery/#{message_id}")
       end
 
       # List sent SMS messages with optional filters
@@ -60,7 +60,7 @@ module Cellcast
       # @return [Hash] API response with message list
       def list_messages(limit: 50, offset: 0, date_from: nil, date_to: nil)
         params = build_list_params(limit, offset, date_from, date_to)
-        path = "sms/messages"
+        path = "api/v1/gateway/messages"
         path += "?#{params}" unless params.empty?
 
         @client.request(method: :get, path: path)

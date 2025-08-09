@@ -17,15 +17,15 @@ class TestSandboxEndpointValidation < Minitest::Test
   def test_valid_endpoints_work
     # Test all known valid endpoints
     valid_tests = [
-      { method: :post, path: "sms/send", body: { to: "+15550000000", message: "test" } },
-      { method: :post, path: "sms/bulk", body: { messages: [{ to: "+15550000000", message: "test" }] } },
-      { method: :get, path: "sms/status/test123" },
-      { method: :get, path: "sms/delivery/test123" },
-      { method: :get, path: "sms/messages" },
+      { method: :post, path: "api/v1/gateway", body: { to: "+15550000000", message: "test" } },
+      { method: :post, path: "api/v1/gateway/bulk", body: { messages: [{ to: "+15550000000", message: "test" }] } },
+      { method: :get, path: "api/v1/gateway/status/test123" },
+      { method: :get, path: "api/v1/gateway/delivery/test123" },
+      { method: :get, path: "api/v1/gateway/messages" },
       { method: :delete, path: "api/v1/gateway/messages/test123" },
-      { method: :get, path: "sms/incoming" },
-      { method: :post, path: "sms/mark-read", body: { message_ids: ["test123"] } },
-      { method: :get, path: "sms/replies/test123" }
+      { method: :get, path: "api/v1/incoming" },
+      { method: :post, path: "api/v1/incoming/mark-read", body: { message_ids: ["test123"] } },
+      { method: :get, path: "api/v1/incoming/replies/test123" }
     ]
 
     valid_tests.each do |test|

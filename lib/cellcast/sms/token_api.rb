@@ -12,19 +12,19 @@ module Cellcast
       # Verify the current API token
       # @return [Hash] API response with token verification details
       def verify_token
-        @client.request(method: :get, path: "auth/verify-token")
+        @client.request(method: :get, path: "api/v1/user/token/verify")
       end
 
       # Get token information including permissions and limits
       # @return [Hash] API response with token details
       def get_token_info
-        @client.request(method: :get, path: "auth/token-info")
+        @client.request(method: :get, path: "api/v1/user/token/info")
       end
 
       # Refresh the API token (if supported)
       # @return [Hash] API response with new token details
       def refresh_token
-        @client.request(method: :post, path: "auth/refresh-token")
+        @client.request(method: :post, path: "api/v1/user/token/refresh")
       end
 
       # Get token usage statistics
@@ -32,7 +32,7 @@ module Cellcast
       # @return [Hash] API response with usage statistics
       def get_usage_stats(period: "daily")
         validate_period(period)
-        @client.request(method: :get, path: "auth/usage-stats?period=#{period}")
+        @client.request(method: :get, path: "api/v1/user/token/usage-stats?period=#{period}")
       end
 
       private

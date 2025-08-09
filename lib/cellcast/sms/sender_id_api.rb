@@ -25,7 +25,7 @@ module Cellcast
           contact_info: contact_info,
         }
 
-        @client.request(method: :post, path: "sender-id/business-name", body: body)
+        @client.request(method: :post, path: "api/v1/sender-id/business-name", body: body)
       end
 
       # Get business name sender ID status
@@ -33,7 +33,7 @@ module Cellcast
       # @return [Hash] API response with status
       def get_business_name_status(sender_id:)
         validate_sender_id(sender_id)
-        @client.request(method: :get, path: "sender-id/business-name/#{sender_id}")
+        @client.request(method: :get, path: "api/v1/sender-id/business-name/#{sender_id}")
       end
 
       # Register a custom number as sender ID
@@ -49,7 +49,7 @@ module Cellcast
           purpose: purpose,
         }
 
-        @client.request(method: :post, path: "sender-id/custom-number", body: body)
+        @client.request(method: :post, path: "api/v1/sender-id/custom-number", body: body)
       end
 
       # Verify a custom number
@@ -65,7 +65,7 @@ module Cellcast
           verification_code: verification_code,
         }
 
-        @client.request(method: :post, path: "sender-id/verify-custom-number", body: body)
+        @client.request(method: :post, path: "api/v1/sender-id/verify-custom-number", body: body)
       end
 
       # Get custom number status
@@ -73,7 +73,7 @@ module Cellcast
       # @return [Hash] API response with status
       def get_custom_number_status(phone_number:)
         validate_phone_number(phone_number)
-        @client.request(method: :get, path: "sender-id/custom-number/#{phone_number}")
+        @client.request(method: :get, path: "api/v1/sender-id/custom-number/#{phone_number}")
       end
 
       # List all registered sender IDs
@@ -82,7 +82,7 @@ module Cellcast
       # @return [Hash] API response with sender ID list
       def list_sender_ids(type: nil, status: nil)
         params = build_list_params(type, status)
-        path = "sender-id/list"
+        path = "api/v1/sender-id/list"
         path += "?#{params}" unless params.empty?
 
         @client.request(method: :get, path: path)
