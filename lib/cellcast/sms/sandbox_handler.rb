@@ -14,6 +14,7 @@ module Cellcast
         "+15550000002" => :rate_limited,
         "+15550000003" => :invalid_number,
         "+15550000004" => :insufficient_credits,
+        "+15550000005" => :low_balance,
       }.freeze
 
       def initialize(logger: nil, base_url: "https://cellcast.com.au/api/v3")
@@ -103,6 +104,8 @@ module Cellcast
           invalid_number_error(phone_number)
         when :insufficient_credits
           insufficient_credits_error
+        when :low_balance
+          low_balance_send_response(phone_number, sms_text, sender_id)
         else
           success_send_response(phone_number, sms_text, sender_id)
         end
@@ -112,12 +115,13 @@ module Cellcast
       def handle_multiple_numbers(numbers, sms_text, sender_id = "TestSender")
         valid_messages = []
         invalid_contacts = []
+        has_low_balance = false
         
         numbers.each do |phone_number|
           behavior = SANDBOX_TEST_NUMBERS[phone_number] || :success
           
           case behavior
-          when :success
+          when :success, :low_balance
             valid_messages << {
               "message_id" => generate_message_id,
               "from" => sender_id, 
@@ -127,6 +131,7 @@ module Cellcast
               "custom_string" => "",
               "direction" => "out"
             }
+            has_low_balance = true if behavior == :low_balance
           when :invalid_number, :failed
             invalid_contacts << phone_number
           when :rate_limited
@@ -149,7 +154,7 @@ module Cellcast
         end
         
         # Return official API format for multiple recipients
-        {
+        response = {
           "meta" => {
             "code" => 200, 
             "status" => "SUCCESS"
@@ -162,11 +167,50 @@ module Cellcast
             "credits_used" => valid_messages.length
           }
         }
+        
+        # Add low balance alert if triggered
+        if has_low_balance
+          response["low_sms_alert"] = "Your account credits are low, you have 5.80 credits remaining, please top-up via the platform"
+        end
+        
+        response
       end
 
       # Handle bulk SMS sending (official API endpoint: bulk-send-sms)
       def handle_bulk_send_message(body)
-        handle_send_message(body) # Reuse existing logic for now
+        # Handle both array of message objects and single message object
+        if body.is_a?(Array)
+          # Process array of message objects
+          total_messages = 0
+          total_success = 0
+          credits_used = 0
+          all_messages = []
+          
+          body.each do |message_obj|
+            result = handle_send_message(message_obj)
+            if result.dig('meta', 'status') == 'SUCCESS'
+              data = result['data']
+              total_messages += data['total_numbers']
+              total_success += data['success_number']
+              credits_used += data['credits_used']
+              all_messages.concat(data['messages'])
+            end
+          end
+          
+          {
+            "meta" => { "code" => 200, "status" => "SUCCESS" },
+            "msg" => "Bulk messages queued",
+            "data" => {
+              "messages" => all_messages,
+              "total_numbers" => total_messages,
+              "success_number" => total_success,
+              "credits_used" => credits_used
+            }
+          }
+        else
+          # Handle single message object
+          handle_send_message(body)
+        end
       end
 
       # Handle get SMS message (official API endpoint: get-sms)
@@ -564,6 +608,36 @@ module Cellcast
             "success_number" => 1,
             "credits_used" => 1
           }
+        }
+      end
+
+      def low_balance_send_response(phone_number, sms_text = "Test message", sender_id = "TestSender")
+        message_id = generate_message_id
+        
+        # Official API response format with low balance alert
+        {
+          "meta" => {
+            "code" => 200,
+            "status" => "SUCCESS"
+          },
+          "msg" => "Queued",
+          "data" => {
+            "messages" => [
+              {
+                "message_id" => message_id,
+                "from" => sender_id,
+                "to" => phone_number,
+                "body" => sms_text,
+                "date" => Time.now.strftime("%Y-%m-%d %H:%M:%S"),
+                "custom_string" => "",
+                "direction" => "out"
+              }
+            ],
+            "total_numbers" => 1,
+            "success_number" => 1,
+            "credits_used" => 1
+          },
+          "low_sms_alert" => "Your account credits are low, you have 5.80 credits remaining, please top-up via the platform"
         }
       end
 

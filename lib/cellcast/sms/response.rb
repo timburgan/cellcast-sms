@@ -67,6 +67,16 @@ module Cellcast
         block.call(self) if error? && block_given?
         self
       end
+
+      # Get low SMS balance alert if present
+      def low_sms_alert
+        @raw_response['low_sms_alert']
+      end
+
+      # Check if there's a low balance alert
+      def low_balance_alert?
+        !low_sms_alert.nil? && !low_sms_alert.empty?
+      end
     end
 
     # Response wrapper for single SMS send operations

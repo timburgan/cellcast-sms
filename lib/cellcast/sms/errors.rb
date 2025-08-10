@@ -61,6 +61,7 @@ module Cellcast
       def insufficient_credit?
         api_message&.include?('insufficient') || 
         api_message&.include?('balance') ||
+        api_message&.include?('INSUFFICIENT_CREDITS') ||
         status_code == 402
       end
 
@@ -68,7 +69,28 @@ module Cellcast
       def invalid_number?
         api_message&.include?('invalid number') || 
         api_message&.include?('invalid phone') ||
+        api_message&.include?('INVALID_NUMBER') ||
         status_code == 400
+      end
+
+      # Check if error is due to field validation
+      def field_invalid?
+        api_message&.include?('FIELD_INVALID') ||
+        api_message&.include?('field') && api_message&.include?('invalid')
+      end
+
+      # Check if error is due to exceeding limits
+      def over_limit?
+        api_message&.include?('OVER_LIMIT') ||
+        api_message&.include?('limit') || 
+        api_message&.include?('maximum')
+      end
+
+      # Check if error is due to invalid message length
+      def invalid_message_length?
+        api_message&.include?('INVALID_MESSAGE_LENGTH') ||
+        api_message&.include?('message length') ||
+        api_message&.include?('characters')
       end
 
       # Check if error is due to rate limiting

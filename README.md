@@ -128,6 +128,13 @@ end
 if client.low_balance?(sms_threshold: 50)
   puts "SMS balance below $50"
 end
+
+# Automatic low balance alerts in SMS responses
+response = client.quick_send(to: '+61400000000', message: 'Hello!')
+
+if response.low_balance_alert?
+  puts "⚠️ #{response.low_sms_alert}"
+end
 ```
 
 ### Message Tracking and Inbound Management
@@ -204,6 +211,41 @@ response = client.send_template(
     { number: '+61400000000', personalization: { name: 'John' } },
     { number: '+61400000001', personalization: { name: 'Jane' } }
   ]
+)
+```
+
+### Enhanced Error Handling
+
+```ruby
+# Structured error handling with specific error types
+begin
+  response = client.quick_send(to: 'invalid', message: 'Test')
+rescue Cellcast::SMS::CellcastApiError => e
+  case
+  when e.insufficient_credit?
+    puts "💳 Insufficient credit: #{e.api_message}"
+  when e.invalid_number?
+    puts "📱 Invalid phone number: #{e.api_message}"
+  when e.field_invalid?
+    puts "📝 Invalid field: #{e.api_message}"
+  when e.over_limit?
+    puts "⚠️ Over limit: #{e.api_message}"
+  when e.invalid_message_length?
+    puts "📏 Message too long: #{e.api_message}"
+  when e.rate_limited?
+    puts "⏰ Rate limited. Retry after #{e.suggested_retry_delay}s"
+  when e.server_error?
+    puts "🔧 Server error - will auto-retry if retryable"
+  else
+    puts "❌ Error: #{e.api_message}"
+  end
+end
+
+# Automatic retry for retryable errors
+response = client.quick_send_with_retry(
+  to: '+61400000000',
+  message: 'Important message',
+  max_retries: 5  # Will retry rate limits and server errors
 )
 ```
 
@@ -470,6 +512,13 @@ client.quick_send(to: '+15550000001', message: 'Test')  # Always fails
 client.quick_send(to: '+15550000002', message: 'Test')  # Rate limited
 client.quick_send(to: '+15550000003', message: 'Test')  # Invalid number
 client.quick_send(to: '+15550000004', message: 'Test')  # Insufficient credits
+client.quick_send(to: '+15550000005', message: 'Test')  # Low balance (success with alert)
+
+# Test low balance alerts
+response = client.quick_send(to: '+15550000005', message: 'Test')
+if response.low_balance_alert?
+  puts "⚠️ #{response.low_sms_alert}"
+end
 ```
 
 ### Running Tests
