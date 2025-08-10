@@ -79,10 +79,11 @@ module Cellcast
         # Official API uses sms_text and numbers array
         sms_text = body&.dig("sms_text") || body&.dig(:sms_text) || "Test message"
         numbers = body&.dig("numbers") || body&.dig(:numbers)
+        sender_id = body&.dig("sender_id") || body&.dig(:sender_id) || "TestSender"
         
         # Handle array of numbers (official API format)
         if numbers.is_a?(Array)
-          return handle_multiple_numbers(numbers, sms_text)
+          return handle_multiple_numbers(numbers, sms_text, sender_id)
         end
         
         # Handle legacy single contact format for backward compatibility
@@ -93,7 +94,7 @@ module Cellcast
 
         case behavior
         when :success
-          success_send_response(phone_number, sms_text)
+          success_send_response(phone_number, sms_text, sender_id)
         when :failed
           failed_send_response(phone_number)
         when :rate_limited
@@ -103,12 +104,12 @@ module Cellcast
         when :insufficient_credits
           insufficient_credits_error
         else
-          success_send_response(phone_number, sms_text)
+          success_send_response(phone_number, sms_text, sender_id)
         end
       end
 
       # Handle multiple numbers array from official API format
-      def handle_multiple_numbers(numbers, sms_text)
+      def handle_multiple_numbers(numbers, sms_text, sender_id = "TestSender")
         valid_messages = []
         invalid_contacts = []
         
@@ -119,7 +120,7 @@ module Cellcast
           when :success
             valid_messages << {
               "message_id" => generate_message_id,
-              "from" => "TestSender", 
+              "from" => sender_id, 
               "to" => phone_number,
               "body" => sms_text,
               "date" => Time.now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -537,7 +538,7 @@ module Cellcast
       end
 
       # Response builders
-      def success_send_response(phone_number, sms_text = "Test message")
+      def success_send_response(phone_number, sms_text = "Test message", sender_id = "TestSender")
         message_id = generate_message_id
         
         # Official API response format from documentation
@@ -551,7 +552,7 @@ module Cellcast
             "messages" => [
               {
                 "message_id" => message_id,
-                "from" => "TestSender",
+                "from" => sender_id,
                 "to" => phone_number,
                 "body" => sms_text,
                 "date" => Time.now.strftime("%Y-%m-%d %H:%M:%S"),
