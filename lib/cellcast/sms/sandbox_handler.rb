@@ -16,41 +16,33 @@ module Cellcast
         "+15550000004" => :insufficient_credits,
       }.freeze
 
-      def initialize(logger: nil, base_url: "https://cellcast.com.au/api/v3")
+      def initialize(logger: nil, base_url: "https://api.cellcast.com")
         @logger = logger
         @base_url = base_url.chomp("/")
       end
 
       # Handle sandbox requests based on method and path
-      def handle_request(method:, path:, body: nil, query: nil)
+      def handle_request(method:, path:, body: nil)
         @current_path = path  # Store current path for error reporting
         log_sandbox_request(method, path, body) if @logger
 
         case path
-        when "send-sms"
+        when %r{^api/v1/gateway$}
           handle_send_message(body)
-        when "bulk-send-sms"
-          handle_bulk_send_message(body)
-        when "send-sms-nz"
-          handle_send_message_nz(body)
-        when "send-sms-template"
-          handle_send_template_message(body)
-        when "get-sms"
-          handle_get_message(query)
-        when "get-responses"
-          handle_get_responses(query)
-        when "inbound-read"
-          handle_mark_inbound_read(body)
-        when "inbound-read-bulk"
-          handle_mark_inbound_read_bulk(body)
-        when "register-alpha-id"
-          handle_alpha_id_registration(body)
-        when "account"
+        when %r{^api/v1/gateway/messages/(.+)$}
+          handle_delete_message(::Regexp.last_match(1), method)
+        when %r{^api/v1/business/add$}
+          handle_business_name_registration(body)
+        when %r{^api/v1/customNumber/add$}
+          handle_custom_number_registration(body)
+        when %r{^api/v1/customNumber/verifyCustomNumber$}
+          handle_custom_number_verification(body)
+        when %r{^api/v1/apiClient/account$}
           handle_account_balance
-        when "get-template"
-          handle_get_templates
-        when "get-optout"
-          handle_get_optout_list
+        when %r{^api/v2/report/message/quick-api-credit-usage$}
+          handle_usage_report
+        when %r{^api/v1/user/token/verify$}
+          handle_token_verification
         else
           handle_unknown_endpoint(path)
         end
@@ -59,224 +51,45 @@ module Cellcast
       private
 
       def handle_send_message(body)
-        # Official API expects sms_text and numbers array
-        numbers = body&.dig("numbers") || body&.dig(:numbers) || []
-        sms_text = body&.dig("sms_text") || body&.dig(:sms_text) || ""
+        # Official API handles both single and bulk SMS through same endpoint
+        # Handle both single contact and bulk messages array format
+        messages = body&.dig("messages") || body&.dig(:messages)
         
-        return validation_error("sms_text is required") if sms_text.empty?
-        return validation_error("numbers array is required") if numbers.empty?
+        # If messages array exists, handle as bulk
+        if messages.is_a?(Array)
+          return handle_bulk_messages(messages, body)
+        end
         
-        # Handle single number
-        if numbers.length == 1
-          phone_number = numbers.first
-          behavior = SANDBOX_TEST_NUMBERS[phone_number] || :success
+        # Single message handling - check various formats
+        contacts = body&.dig("contacts") || body&.dig(:contacts)
+        phone_number = body&.dig("to") || body&.dig(:to)
 
-          case behavior
-          when :success
-            success_send_response(phone_number, sms_text)
-          when :failed
-            failed_send_response(phone_number)
-          when :rate_limited
-            rate_limit_error
-          when :invalid_number
-            invalid_number_error(phone_number)
-          when :insufficient_credits
-            insufficient_credits_error
-          else
-            success_send_response(phone_number, sms_text)
-          end
+        # If we have a contacts array, handle as bulk-style request  
+        return handle_bulk_contacts(contacts, body) if contacts.is_a?(Array)
+
+        # Single message handling
+        phone_number = contacts&.first if contacts && phone_number.nil?
+        behavior = SANDBOX_TEST_NUMBERS[phone_number] || :success
+
+        case behavior
+        when :success
+          success_send_response(phone_number)
+        when :failed
+          failed_send_response(phone_number)
+        when :rate_limited
+          rate_limit_error
+        when :invalid_number
+          invalid_number_error(phone_number)
+        when :insufficient_credits
+          insufficient_credits_error
         else
-          handle_multiple_numbers(numbers, sms_text)
+          success_send_response(phone_number)
         end
       end
 
-      def handle_bulk_send_message(body)
-        # Bulk SMS endpoint - same structure as send-sms but for bulk operations
-        handle_send_message(body)
-      end
-
-      def handle_send_message_nz(body)
-        # New Zealand SMS - same structure but for NZ numbers
-        handle_send_message(body)
-      end
-
-      def handle_send_template_message(body)
-        template_id = body&.dig("template_id") || body&.dig(:template_id)
-        numbers = body&.dig("numbers") || body&.dig(:numbers) || []
-        
-        return validation_error("template_id is required") if template_id.nil?
-        return validation_error("numbers array is required") if numbers.empty?
-        
-        # Simulate template message sending
-        messages = numbers.map do |number_data|
-          phone_number = number_data.is_a?(Hash) ? number_data["number"] || number_data[:number] : number_data
-          generate_message_response(phone_number, "Template message content")
-        end
-
-        {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Template messages queued",
-          "data" => {
-            "messages" => messages,
-            "total_numbers" => numbers.length,
-            "success_number" => numbers.length,
-            "credits_used" => numbers.length
-          }
-        }
-      end
-
-      def handle_get_message(query)
-        # Parse query for message_id
-        message_id = if query
-                      query.split('&').find { |param| param.start_with?('message_id=') }&.split('=', 2)&.last
-                    end
-        
-        return validation_error("message_id parameter is required") unless message_id
-        
-        {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Record founded",
-          "data" => [
-            {
-              "to" => "+61400000000",
-              "body" => "Sample message content",
-              "sent_time" => Time.now.strftime("%Y-%m-%d %H:%M:%S"),
-              "message_id" => message_id,
-              "status" => "Delivered",
-              "subaccount_id" => ""
-            }
-          ]
-        }
-      end
-
-      def handle_get_responses(query)
-        # Parse query for page and type
-        page = 1
-        type = "sms"
-        
-        if query
-          query.split('&').each do |param|
-            key, value = param.split('=', 2)
-            page = value.to_i if key == 'page' && value
-            type = value if key == 'type' && value
-          end
-        end
-        
-        {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Inbound messages retrieved",
-          "data" => [
-            {
-              "from" => "+61400000001",
-              "body" => "Reply to your message",
-              "date" => Time.now.strftime("%Y-%m-%d %H:%M:%S"),
-              "message_id" => "inbound_#{Time.now.to_i}",
-              "direction" => "in"
-            }
-          ],
-          "page" => { "count" => 1, "number" => page }
-        }
-      end
-
-      def handle_mark_inbound_read(body)
-        message_id = body&.dig("message_id") || body&.dig(:message_id)
-        
-        return validation_error("message_id is required") unless message_id
-        
-        {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Message marked as read",
-          "data" => { "message_id" => message_id }
-        }
-      end
-
-      def handle_mark_inbound_read_bulk(body)
-        timestamp = body&.dig("timestamp") || body&.dig(:timestamp)
-        
-        {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Messages marked as read",
-          "data" => { 
-            "marked_count" => 5,
-            "timestamp" => timestamp || Time.now.strftime("%Y-%m-%d %H:%M:%S")
-          }
-        }
-      end
-
-      def handle_alpha_id_registration(body)
-        alpha_id = body&.dig("alpha_id") || body&.dig(:alpha_id)
-        purpose = body&.dig("purpose") || body&.dig(:purpose)
-        
-        return validation_error("alpha_id is required") unless alpha_id
-        return validation_error("purpose is required") unless purpose
-        
-        {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Alpha ID registration submitted",
-          "data" => {
-            "alpha_id" => alpha_id,
-            "purpose" => purpose,
-            "status" => "pending_approval"
-          }
-        }
-      end
-
-      def handle_get_templates
-        {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Templates retrieved",
-          "data" => [
-            {
-              "id" => "1",
-              "name" => "Welcome Message",
-              "content" => "Welcome {fname} {lname}! Thanks for joining us."
-            },
-            {
-              "id" => "2", 
-              "name" => "Reminder",
-              "content" => "Hi {fname}, don't forget your appointment on {date}."
-            }
-          ]
-        }
-      end
-
-      def handle_get_optout_list
-        {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Optout list retrieved",
-          "data" => [
-            {
-              "number" => "+61400000999",
-              "date_opted_out" => "2023-01-15 10:30:00"
-            }
-          ]
-        }
-      end
-
-      def handle_multiple_numbers(numbers, sms_text)
-        messages = []
-        valid_count = 0
-        
-        numbers.each do |phone_number|
-          behavior = SANDBOX_TEST_NUMBERS[phone_number] || :success
-          
-          if behavior == :success
-            messages << generate_message_response(phone_number, sms_text)
-            valid_count += 1
-          end
-        end
-
-        {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Queued",
-          "data" => {
-            "messages" => messages,
-            "total_numbers" => numbers.length,
-            "success_number" => valid_count,
-            "credits_used" => valid_count
-          }
-        }
-      end
+      def handle_bulk_messages(messages, _body)
+        valid_responses = []
+        invalid_contacts = []
 
         messages.each do |msg|
           phone_number = msg["to"] || msg[:to]
@@ -468,16 +281,26 @@ module Cellcast
 
       def handle_account_balance
         {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Here's your account",
+          "app_type" => "web",
+          "app_version" => "1.0",
+          "maintainence" => 0,
+          "new_version" => 0,
+          "force_update" => 0,
+          "invalid_token" => 0,
+          "refresh_token" => "",
+          "show_message" => 0,
+          "is_enc" => false,
+          "status" => true,
+          "message" => "Account balance retrieved successfully!",
+          "message_type" => "toast",
           "data" => {
-            "account_name" => "John Doe",
-            "account_email" => "john@example.com",
-            "sms_balance" => "125.50",
-            "mms_balance" => "50.00"
-          }
-        }
-      end
+            "account_id" => "sandbox_account_001",
+            "balance" => 125.50,
+            "currency" => "AUD",
+            "last_updated" => Time.now.utc.iso8601,
+            "credit_limit" => 0.0,
+          },
+          "error" => {},
         }
       end
 
@@ -539,68 +362,55 @@ module Cellcast
         }
       end
 
-      # Response builders  
-      def success_send_response(phone_number, sms_text = "Test message")
+      # Response builders
+      def success_send_response(phone_number, bulk: false)
         message_id = generate_message_id
-        
-        {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Queued",
+        contact_clean = phone_number&.gsub(/^\+/, "")&.gsub(/^61/, "")&.gsub(/^0/, "") || "400000000"
+
+        # Match the exact structure from official API docs
+        response = {
+          "app_type" => "web",
+          "app_version" => "1.0",
+          "maintainence" => 0,
+          "new_version" => 0,
+          "force_update" => 0,
+          "invalid_token" => 0,
+          "refresh_token" => "",
+          "show_message" => 0,
+          "is_enc" => false,
+          "status" => true,
+          "message" => "Request is being processed",
+          "message_type" => "toast",
           "data" => {
-            "messages" => [
-              generate_message_response(phone_number, sms_text, message_id)
+            "queueResponse" => [
+              {
+                "Contact" => contact_clean,
+                "MessageId" => message_id,
+                "Result" => "Message added to queue.",
+                "Number" => phone_number,
+              },
             ],
-            "total_numbers" => 1,
-            "success_number" => 1,
-            "credits_used" => 1
-          }
+            "message" => "success register all valid contacts to queue",
+            "invalidContacts" => [],
+            "unsubscribeContacts" => [],
+            "totalValidContact" => 1,
+            "totalInvalidContact" => 0,
+            "totalUnsubscribeContact" => 0,
+          },
+          "error" => {},
         }
-      end
 
-      def generate_message_response(phone_number, sms_text, message_id = nil)
-        {
-          "message_id" => message_id || generate_message_id,
-          "from" => "SENDER_ID",
-          "to" => phone_number,
-          "body" => sms_text,
-          "date" => Time.now.strftime("%Y-%m-%d %H:%M:%S"),
-          "custom_string" => "test",
-          "direction" => "out"
-        }
-      end
-
-      def validation_error(message)
-        {
-          "meta" => { "code" => 400, "status" => "FIELD_INVALID" },
-          "msg" => message,
-          "data" => []
-        }
-      end
-
-      def rate_limit_error
-        error = Cellcast::SMS::RateLimitError.new(
-          "Rate limit exceeded for sandbox test number. Please try again later.",
-          status_code: 429,
-          requested_url: @base_url
-        )
-        raise error
-      end
-
-      def invalid_number_error(phone_number)
-        {
-          "meta" => { "code" => 400, "status" => "INVALID_NUMBER" },
-          "msg" => "Invalid phone number: #{phone_number}",
-          "data" => []
-        }
-      end
-
-      def insufficient_credits_error
-        {
-          "meta" => { "code" => 400, "status" => "INSUFFICIENT_CREDITS" },
-          "msg" => "Insufficient credits to send message",
-          "data" => []
-        }
-      end
+        # Add backward compatibility fields for tests
+        unless bulk
+          response.merge!({
+                            "id" => message_id,
+                            "message_id" => message_id,
+                            "to" => phone_number,
+                            "cost" => 0.05,
+                            "parts" => 1,
+                            "created_at" => Time.now.utc.iso8601,
+                          })
+        end
 
         response
       end
