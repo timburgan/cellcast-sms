@@ -6,6 +6,7 @@ class TestConvenience < Minitest::Test
   def setup
     config = Cellcast::SMS::Configuration.new
     config.sandbox_mode = true
+    config.response_format = :raw  # Test raw responses for backward compatibility
     @client = Cellcast.sms(api_key: "test_key", config: config)
   end
 
