@@ -492,7 +492,8 @@ module Cellcast
       include Enumerable
 
       def initialize(responses)
-        @responses = responses
+        # Ensure responses is always an array
+        @responses = responses.is_a?(Array) ? responses : [responses]
       end
 
       # Iterate over responses
@@ -577,6 +578,22 @@ module Cellcast
       def to_s
         "BulkResponseCollection(#{response_count} responses, #{total_numbers} total numbers, #{success_rate}% success rate)"
       end
+
+      # Convert to hash representation (aggregated data)
+      def to_h
+        {
+          responses: @responses.map { |r| r.respond_to?(:to_h) ? r.to_h : r },
+          summary: {
+            response_count: response_count,
+            total_numbers: total_numbers,
+            total_success_number: total_success_number,
+            total_failed_number: total_failed_number,
+            success_rate: success_rate,
+            total_credits_used: total_credits_used
+          }
+        }
+      end
+      alias_method :to_hash, :to_h
     end
   end
 end

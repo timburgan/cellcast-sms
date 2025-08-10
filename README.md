@@ -4,6 +4,20 @@
 
 A Ruby gem for the Cellcast API focused on SMS sending and account management. Provides an enhanced developer experience with smart response objects while maintaining full access to the official Cellcast API.
 
+## Recent Improvements ✨
+
+### Fixed Critical Issues
+- **Sandbox Bulk SMS Bug**: Fixed TypeError when processing array structures in bulk operations
+- **Enhanced Response Collection**: Fixed `.to_h` method for bulk response collections 
+- **Missing API Fields**: Added support for `low_sms_alert` field from API responses
+- **Error Code Detection**: Complete coverage of official error codes (`FIELD_INVALID`, `OVER_LIMIT`, etc.)
+
+### New Methods Added
+- **`quick_send_bulk()`**: Simple bulk SMS sending for multiple recipients
+- **Enhanced Error Handling**: Structured error detection with specific error type methods
+- **Low Balance Detection**: Automatic alerts when account credits are low
+- **Bulk Collection Methods**: Better handling of multiple response aggregation
+
 ## Features
 
 ### Core SMS Operations
@@ -78,6 +92,47 @@ end
 client.quick_send(to: '+61400000000', message: 'Hello!')
   .on_success { |r| puts "Sent! ID: #{r.message_id}" }
   .on_error { |r| puts "Failed: #{r.api_message}" }
+```
+
+### Recently Fixed: Bulk SMS and Error Handling
+
+```ruby
+# Fixed: Bulk SMS with array structures now works correctly
+client.send_personalized(messages: [
+  { to: '+61400000000', message: 'Hello Alice!' },
+  { to: '+61400000001', message: 'Hello Bob!' }
+])
+
+# Fixed: Quick bulk sending method added
+response = client.quick_send_bulk(
+  to: ['+61400000000', '+61400000001'],
+  message: 'Bulk message'
+)
+
+# Fixed: Response collections now support .to_h
+puts response.to_h[:summary][:success_rate]  # Works correctly now
+
+# Fixed: Low balance alerts now properly exposed
+response = client.quick_send(to: '+61400000000', message: 'Test')
+if response.low_balance_alert?
+  puts "⚠️ #{response.low_sms_alert}"
+end
+
+# Fixed: Enhanced error code detection
+begin
+  client.quick_send(to: 'invalid', message: 'Test')
+rescue Cellcast::SMS::CellcastApiError => e
+  case
+  when e.field_invalid?
+    puts "📝 Invalid field provided"
+  when e.over_limit?
+    puts "⚠️ Message limit exceeded"
+  when e.invalid_message_length?
+    puts "📏 Message too long"
+  when e.insufficient_credit?
+    puts "💳 Insufficient account credit"
+  end
+end
 ```
 
 ### Bulk Operations with Smart Features

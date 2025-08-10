@@ -42,6 +42,16 @@ module Cellcast
         end
       end
 
+      # Quick send SMS to multiple recipients (simple bulk operation)
+      # @param to [Array<String>] Array of phone numbers
+      # @param message [String] Message content
+      # @param from [String, nil] Optional sender ID
+      # @return [BulkSmsResponse, BulkResponseCollection] Enhanced response object
+      def quick_send_bulk(to:, message:, from: nil)
+        from ||= config.default_sender_id if config.default_sender_id
+        broadcast(to: to, message: message, from: from)
+      end
+
       # Send SMS to multiple recipients with smart chunking
       # @param to [Array<String>] Array of phone numbers
       # @param message [String] Message content
