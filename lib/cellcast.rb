@@ -9,7 +9,7 @@ module Cellcast
   # @param base_url [String] The base URL for the Cellcast API
   # @param config [Cellcast::SMS::Configuration] Configuration object for timeouts and retries
   # @return [Cellcast::SMS::Client] A new client instance
-  def self.sms(api_key:, base_url: "https://api.cellcast.com", config: nil)
+  def self.sms(api_key:, base_url: "https://cellcast.com.au/api/v3", config: nil)
     SMS.new(api_key: api_key, base_url: base_url, config: config)
   end
 

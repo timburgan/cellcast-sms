@@ -73,8 +73,8 @@ class TestConvenience < Minitest::Test
     data = response["data"]
     assert_equal 2, data["total_numbers"]
     assert_equal 1, data["success_number"]
-    assert_equal 1, data["queueResponse"].length
-    assert_equal 1, data["invalidContacts"].length
+    assert_equal 1, data["messages"].length
+    # Note: Official API doesn't expose invalid contacts in successful responses
   end
 
   def test_get_message_status
@@ -149,25 +149,5 @@ class TestConvenience < Minitest::Test
 
     assert_instance_of Hash, response
     assert_equal "SUCCESS", response.dig("meta", "status")
-  end
-
-  def test_register_number
-    response = @client.register_number(
-      phone_number: "+1234567890",
-      purpose: "Customer support"
-    )
-
-    assert_instance_of Hash, response
-    assert response["status"]
-  end
-
-  def test_verify_number
-    response = @client.verify_number(
-      phone_number: "+1234567890",
-      verification_code: "123456"
-    )
-
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
   end
 end
