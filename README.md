@@ -1,17 +1,50 @@
 # Cellcast SMS
 
-> **Note**: This is an unofficial gem that wraps the [official Cellcast API](https://developer.cellcast.com). I built this for me own use to make my life easier.
+> **Note**: This is an unofficial gem that wraps the [official Cellcast API](https://cellcast.com.au/api/documentation/). I built this for my own use to make my life easier.
 
-A Ruby gem for the Cellcast API focused on SMS sending, account management, and sender ID registration. Simple, reliable SMS delivery with a developer-friendly interface.
+A Ruby gem for the Cellcast API focused on SMS sending and account management. Provides an enhanced developer experience with smart response objects while maintaining full access to the official Cellcast API.
+
+## Recent Improvements ✨
+
+### Fixed Critical Issues
+- **Sandbox Bulk SMS Bug**: Fixed TypeError when processing array structures in bulk operations
+- **Enhanced Response Collection**: Fixed `.to_h` method for bulk response collections 
+- **Missing API Fields**: Added support for `low_sms_alert` field from API responses
+- **Error Code Detection**: Complete coverage of official error codes (`FIELD_INVALID`, `OVER_LIMIT`, etc.)
+
+### New Methods Added
+- **`quick_send_bulk()`**: Simple bulk SMS sending for multiple recipients
+- **Enhanced Error Handling**: Structured error detection with specific error type methods
+- **Low Balance Detection**: Automatic alerts when account credits are low
+- **Bulk Collection Methods**: Better handling of multiple response aggregation
 
 ## Features
 
-- **Send SMS**: Individual messages and bulk broadcasts
-- **Account Management**: Check balance and usage reports
-- **Sender ID Management**: Register business names and custom numbers
-- **Zero Configuration**: Sensible defaults with automatic retries and error handling
-- **Developer Friendly**: Structured response objects and helpful error messages  
-- **Ruby 3.3+**: Uses only Ruby standard library, no external dependencies
+### Core SMS Operations
+- **Send SMS**: Individual messages with enhanced response objects
+- **Bulk SMS**: Send to multiple recipients with automatic chunking
+- **Account Management**: Check balance with low-balance detection
+- **Message Tracking**: Get message details with delivery tracking
+- **Inbound Messages**: Retrieve and manage incoming SMS with pagination helpers
+- **New Zealand SMS**: Dedicated endpoint for NZ numbers
+- **Template Messages**: Send SMS using predefined templates
+- **Alpha ID Registration**: Register business names for sender IDs
+
+### Enhanced Developer Experience
+- **Smart Response Objects**: Convenient methods like `.success?`, `.message_id`, `.credits_used`
+- **Chainable Operations**: `.on_success` and `.on_error` for clean error handling
+- **Automatic Retry**: Built-in retry logic for rate limits and server errors
+- **Smart Defaults**: Configure default sender IDs and other preferences
+- **Automatic Chunking**: Large broadcasts split automatically for optimal delivery
+- **Message Tracking**: Track messages until delivered with timeout support
+- **Pagination Helpers**: Easy iteration through large inbound message lists
+- **Low Balance Alerts**: Automatic detection of low account balances
+
+### Configuration Options
+- **Enhanced Responses**: Rich response objects with convenience methods (default)
+- **Raw Responses**: Direct API responses for maximum compatibility
+- **Flexible Configuration**: Custom retry settings, chunk sizes, and more
+- **Sandbox Mode**: Safe testing without real API calls
 
 ## Quick Start
 
@@ -28,119 +61,602 @@ Then run:
 bundle install
 ```
 
-### Basic Usage
+### Enhanced Response Mode (Recommended)
 
 ```ruby
 require 'cellcast'
 
-# Create client with your API key
-client = Cellcast.sms(api_key: 'your-api-key')
-
-# Send a message
-response = client.quick_send(
-  to: '+1234567890',
-  message: 'Hello from Cellcast!',
-  from: 'YourBrand'
+# Create client with enhanced responses (default behavior)
+client = Cellcast.enhanced_sms(
+  api_key: 'your-api-key',
+  default_sender_id: 'YourBrand',
+  sandbox_mode: false  # Set to true for testing
 )
 
-puts "Message sent! ID: #{response.message_id}" if response.success?
+# Send a message with smart response handling
+response = client.quick_send(
+  to: '+61400000000',
+  message: 'Hello from Cellcast!'
+)
 
-# Send to multiple recipients
-broadcast = client.broadcast(
-  to: ['+1234567890', '+0987654321'],
+# Clean, readable response handling
+if response.success?
+  puts "Message sent! ID: #{response.message_id}"
+  puts "Credits used: #{response.credits_used}"
+  puts "Sent to: #{response.to}"
+else
+  puts "Failed: #{response.api_message}"
+end
+
+# Chainable operations for elegant error handling
+client.quick_send(to: '+61400000000', message: 'Hello!')
+  .on_success { |r| puts "Sent! ID: #{r.message_id}" }
+  .on_error { |r| puts "Failed: #{r.api_message}" }
+```
+
+### Recently Fixed: Bulk SMS and Error Handling
+
+```ruby
+# Fixed: Bulk SMS with array structures now works correctly
+client.send_personalized(messages: [
+  { to: '+61400000000', message: 'Hello Alice!' },
+  { to: '+61400000001', message: 'Hello Bob!' }
+])
+
+# Fixed: Quick bulk sending method added
+response = client.quick_send_bulk(
+  to: ['+61400000000', '+61400000001'],
+  message: 'Bulk message'
+)
+
+# Fixed: Response collections now support .to_h
+puts response.to_h[:summary][:success_rate]  # Works correctly now
+
+# Fixed: Low balance alerts now properly exposed
+response = client.quick_send(to: '+61400000000', message: 'Test')
+if response.low_balance_alert?
+  puts "⚠️ #{response.low_sms_alert}"
+end
+
+# Fixed: Enhanced error code detection
+begin
+  client.quick_send(to: 'invalid', message: 'Test')
+rescue Cellcast::SMS::CellcastApiError => e
+  case
+  when e.field_invalid?
+    puts "📝 Invalid field provided"
+  when e.over_limit?
+    puts "⚠️ Message limit exceeded"
+  when e.invalid_message_length?
+    puts "📏 Message too long"
+  when e.insufficient_credit?
+    puts "💳 Insufficient account credit"
+  end
+end
+```
+
+### Bulk Operations with Smart Features
+
+```ruby
+# Send to multiple recipients with automatic chunking
+recipients = ['+61400000000', '+61400000001', '+61400000002']
+
+response = client.broadcast(
+  to: recipients,
   message: 'Important announcement!'
 )
 
-puts "Sent to #{broadcast.successful_count} recipients"
-puts "Total cost: $#{broadcast.total_cost}"
+# Rich information about the broadcast
+puts "Success rate: #{response.success_rate}%"
+puts "Total sent: #{response.success_number}/#{response.total_numbers}"
+puts "Credits used: #{response.credits_used}"
 
-# Check account balance
+# Handle mixed results
+if response.has_failures?
+  puts "Some messages failed to send"
+else
+  puts "All messages sent successfully!"
+end
+
+# Iterate through individual messages
+response.each_message do |message|
+  puts "#{message['to']}: #{message['message_id']}"
+end
+```
+
+### Account Management with Smart Features
+
+```ruby
+# Check account balance with enhanced features
 balance = client.balance
-puts "Current balance: $#{balance.data['balance']}"
 
-# Get usage statistics
-usage = client.usage_report
-puts "Messages sent this month: #{usage.data['messages_sent']}"
+puts "SMS Balance: $#{balance.sms_balance}"
+puts "MMS Balance: $#{balance.mms_balance}"
+puts "Account: #{balance.account_name}"
 
-# Register a business name for sender ID
-client.sender_id.register_business_name(
-  business_name: 'Your Company Ltd',
-  business_registration: 'REG123456',
-  contact_info: {
-    email: 'contact@yourcompany.com',
-    phone: '+1234567890'
-  }
+# Smart balance checking
+if balance.low_balance?
+  puts "⚠️  Your balance is low!"
+end
+
+# Custom thresholds
+if client.low_balance?(sms_threshold: 50)
+  puts "SMS balance below $50"
+end
+
+# Automatic low balance alerts in SMS responses
+response = client.quick_send(to: '+61400000000', message: 'Hello!')
+
+if response.low_balance_alert?
+  puts "⚠️ #{response.low_sms_alert}"
+end
+```
+
+### Message Tracking and Inbound Management
+
+```ruby
+# Track message delivery
+message_id = response.message_id
+final_status = client.track_message_delivery(
+  message_id: message_id,
+  timeout: 300,      # 5 minutes
+  check_interval: 30 # Check every 30 seconds
 )
+
+puts "Final status: #{final_status.status}"
+puts "Delivered at: #{final_status.delivered_at}" if final_status.delivered?
+
+# Get inbound messages with pagination
+inbound = client.get_inbound_messages(page: 1)
+
+puts "Current page: #{inbound.current_page}/#{inbound.total_pages}"
+puts "Messages on this page: #{inbound.message_count}"
+
+# Iterate through messages
+inbound.each_message do |message|
+  puts "From #{message.from}: #{message.body}"
+  puts "Received: #{message.received_at}"
+  puts "Read: #{message.read? ? 'Yes' : 'No'}"
+end
+
+# Get all unread messages across all pages
+unread_messages = client.get_all_inbound_messages(unread_only: true)
+puts "You have #{unread_messages.length} unread messages"
+
+# Mark all unread messages as read
+marked_count = client.mark_all_unread_as_read
+puts "Marked #{marked_count} messages as read"
+```
+
+### Advanced Features
+
+```ruby
+# Send with automatic retry on failure
+response = client.quick_send_with_retry(
+  to: '+61400000000',
+  message: 'Important message',
+  max_retries: 5
+)
+
+# Large broadcasts with custom chunking
+large_list = (1..500).map { |i| "+6140000#{i.to_s.rjust(4, '0')}" }
+
+response = client.broadcast_with_retry(
+  to: large_list,
+  message: 'Mass notification',
+  max_retries: 3
+)
+
+# BulkResponseCollection for large broadcasts
+puts "Processed #{response.response_count} chunks"
+puts "Overall success rate: #{response.success_rate}%"
+
+# Personalized messages
+messages = [
+  { to: '+61400000000', message: 'Hello John!', sender_id: 'Store' },
+  { to: '+61400000001', message: 'Hello Jane!', sender_id: 'Store' },
+]
+
+response = client.send_personalized(messages: messages)
+
+# Template-based sending
+response = client.send_template(
+  template_id: 'welcome_template',
+  numbers: [
+    { number: '+61400000000', personalization: { name: 'John' } },
+    { number: '+61400000001', personalization: { name: 'Jane' } }
+  ]
+)
+```
+
+### Enhanced Error Handling
+
+```ruby
+# Structured error handling with specific error types
+begin
+  response = client.quick_send(to: 'invalid', message: 'Test')
+rescue Cellcast::SMS::CellcastApiError => e
+  case
+  when e.insufficient_credit?
+    puts "💳 Insufficient credit: #{e.api_message}"
+  when e.invalid_number?
+    puts "📱 Invalid phone number: #{e.api_message}"
+  when e.field_invalid?
+    puts "📝 Invalid field: #{e.api_message}"
+  when e.over_limit?
+    puts "⚠️ Over limit: #{e.api_message}"
+  when e.invalid_message_length?
+    puts "📏 Message too long: #{e.api_message}"
+  when e.rate_limited?
+    puts "⏰ Rate limited. Retry after #{e.suggested_retry_delay}s"
+  when e.server_error?
+    puts "🔧 Server error - will auto-retry if retryable"
+  else
+    puts "❌ Error: #{e.api_message}"
+  end
+end
+
+# Automatic retry for retryable errors
+response = client.quick_send_with_retry(
+  to: '+61400000000',
+  message: 'Important message',
+  max_retries: 5  # Will retry rate limits and server errors
+)
+```
+
+### Configuration Options
+
+```ruby
+# Comprehensive configuration
+client = Cellcast.sms(
+  api_key: 'your-api-key',
+  response_format: :enhanced,        # :enhanced, :raw, or :both
+  default_sender_id: 'YourBrand',    # Used when no sender_id specified
+  auto_retry_failed: true,           # Automatically retry failed requests
+  max_retries: 3,                    # Maximum retry attempts
+  chunk_size: 100,                   # Bulk operation chunk size
+  low_balance_threshold: 20,         # SMS balance warning threshold
+  sandbox_mode: false                # Enable for testing
+)
+
+# Quick setups for common scenarios
+enhanced_client = Cellcast.enhanced_sms(api_key: 'key', default_sender_id: 'Brand')
+raw_client = Cellcast.raw_sms(api_key: 'key')  # For legacy compatibility
+```
+
+## Raw Response Mode (Legacy)
+
+For maximum compatibility with existing code, you can use raw response mode:
+
+```ruby
+# Create client with raw responses
+client = Cellcast.raw_sms(api_key: 'your-api-key')
+
+# Returns raw API responses (Hash objects)
+response = client.quick_send(
+  to: '+61400000000',
+  message: 'Hello!',
+  from: 'YourBrand'
+)
+
+# Manual response parsing (legacy approach)
+if response['meta'] && response['meta']['status'] == 'SUCCESS'
+  messages = response.dig('data', 'messages')
+  message_id = messages.first['message_id'] if messages&.first
+  puts "Message sent! ID: #{message_id}"
+  puts "Credits used: #{response.dig('data', 'credits_used')}"
+else
+  puts "Failed: #{response['msg']}"
+end
 ```
 
 ## Error Handling
 
-The gem includes automatic retries and helpful error messages:
+### Enhanced Error Handling (Recommended)
 
 ```ruby
 begin
-  response = client.quick_send(to: '+1234567890', message: 'Hello!')
-rescue Cellcast::SMS::ValidationError => e
-  puts "Validation error: #{e.message}"
-  # Example: "Phone number must be in international format (e.g., +1234567890)"
-rescue Cellcast::SMS::RateLimitError => e
-  puts "Rate limited. Retry after: #{e.retry_after} seconds"
-  puts "Attempted URL: #{e.requested_url}"
-rescue Cellcast::SMS::NetworkError => e
-  puts "Network error: #{e.message}"
-  # Gem automatically retried 3 times with exponential backoff
-rescue Cellcast::SMS::APIError => e
-  puts "API error: #{e.message}"
-  puts "Attempted URL: #{e.requested_url}"
+  response = client.quick_send(to: '+61400000000', message: 'Hello!')
+rescue Cellcast::SMS::CellcastApiError => e
+  case
+  when e.insufficient_credit?
+    puts "💳 Insufficient credit: #{e.api_message}"
+  when e.invalid_number?
+    puts "📱 Invalid number format: #{e.api_message}"
+  when e.rate_limited?
+    puts "⏰ Rate limited. Retry after #{e.suggested_retry_delay} seconds"
+  when e.authentication_error?
+    puts "🔑 Authentication failed: #{e.api_message}"
+  else
+    puts "❌ Error: #{e.api_message}"
+  end
+end
+
+# Automatic retry for retryable errors
+begin
+  response = client.quick_send_with_retry(
+    to: '+61400000000',
+    message: 'Important message'
+  )
+rescue Cellcast::SMS::CellcastApiError => e
+  puts "Failed after retries: #{e.api_message}"
 end
 ```
 
-## Advanced Usage
-
-For complete API documentation, advanced examples, architecture details, and sequence diagrams, see the [**Developer Guide**](DEVELOPER.md).
-
-The gem provides two levels of access:
-
-**Convenience Methods** (shown above) - Perfect for common use cases  
-**Full API Access** - Complete control over all parameters:
+### Legacy Error Handling
 
 ```ruby
-# Direct API access for advanced customization
-response = client.sms.send_message(
-  to: '+1234567890',
-  message: 'Hello!',
-  sender_id: 'YourBrand'
-)
+response = client.quick_send(to: '+61400000000', message: 'Hello!')
 
-# Cancel a scheduled message
-client.cancel_message(message_id: 'msg_123456789')
+case response.dig('meta', 'status')
+when 'SUCCESS'
+  puts "Message sent successfully"
+when 'FAILED'
+  puts "Message failed: #{response['msg']}"
+end
+```
 
-# Account operations
-balance = client.account.get_account_balance
-usage = client.account.get_usage_report
+## Full API Reference
 
-# Sender ID management
-client.sender_id.register_business_name(
-  business_name: 'Your Company Ltd',
-  business_registration: 'REG123456',
-  contact_info: { email: 'contact@yourcompany.com', phone: '+1234567890' }
-)
+### All Available Methods
 
-client.sender_id.register_custom_number(
-  phone_number: '+1234567890',
-  purpose: 'Customer notifications'
+```ruby
+# SMS Operations
+client.quick_send(to:, message:, from: nil)
+client.quick_send_with_retry(to:, message:, from: nil, max_retries: nil)
+client.broadcast(to:, message:, from: nil, chunk_size: nil)
+client.broadcast_with_retry(to:, message:, from: nil, max_retries: nil)
+client.send_personalized(messages:, chunk_size: nil)
+client.send_to_nz(to:, message:, from: nil)
+client.send_template(template_id:, numbers:, from: nil)
+
+# Message Management
+client.get_message_status(message_id:)
+client.track_message_delivery(message_id:, timeout: 300, check_interval: 30)
+client.delivery_stats(message_ids)
+
+# Inbound Messages
+client.get_inbound_messages(page: 1)
+client.get_all_inbound_messages(limit: nil, unread_only: false)
+client.inbound_message_stats(pages: 1)
+client.mark_read(message_id:)
+client.mark_all_read(before: nil)
+client.mark_all_unread_as_read(before: nil)
+
+# Account Operations
+client.balance
+client.low_balance?(sms_threshold: nil, mms_threshold: 5)
+client.get_templates
+client.find_template(identifier)
+client.get_optouts
+
+# Registration
+client.register_alpha_id(alpha_id:, purpose:, business_registration: nil, contact_info: nil)
+```
+
+### Response Object Methods
+
+#### SendSmsResponse
+```ruby
+response.success?              # Boolean: API call successful
+response.error?                # Boolean: API call failed  
+response.message_id            # String: Message ID
+response.credits_used          # Integer: Credits consumed
+response.to                    # String: Recipient number
+response.from                  # String: Sender ID used
+response.message_text          # String: Message content
+response.all_successful?       # Boolean: All messages sent
+response.api_message           # String: API response message
+response.raw_response          # Hash: Full API response
+```
+
+#### BulkSmsResponse
+```ruby
+response.success_rate          # Float: Success percentage
+response.total_numbers         # Integer: Total recipients
+response.success_number        # Integer: Successful sends
+response.failed_number         # Integer: Failed sends
+response.credits_used          # Integer: Credits consumed
+response.messages              # Array: Message details
+response.all_successful?       # Boolean: All messages sent
+response.has_failures?         # Boolean: Any failures occurred
+response.each_message { |msg| ... }  # Iterate messages
+```
+
+#### AccountBalanceResponse
+```ruby
+balance.sms_balance           # String: SMS balance
+balance.mms_balance           # String: MMS balance
+balance.account_name          # String: Account name
+balance.low_sms_balance?(threshold)   # Boolean: SMS balance low
+balance.low_mms_balance?(threshold)   # Boolean: MMS balance low
+balance.low_balance?(sms_thresh, mms_thresh)  # Boolean: Any balance low
+balance.total_balance         # Float: Combined balance
+```
+
+#### InboundMessagesResponse
+```ruby
+inbound.messages              # Array<InboundMessage>: Message objects
+inbound.current_page          # Integer: Current page number
+inbound.total_pages          # Integer: Total pages available
+inbound.has_more_pages?      # Boolean: More pages available
+inbound.message_count        # Integer: Messages on current page
+inbound.unread_messages      # Array: Unread messages only
+inbound.each_message { |msg| ... }   # Iterate messages
+```
+
+#### InboundMessage
+```ruby
+message.from                 # String: Sender number
+message.body                 # String: Message content
+message.received_at          # Time: When received
+message.message_id           # String: Message ID
+message.read?                # Boolean: Has been read
+message.unread?              # Boolean: Not yet read
+```
+
+### Chainable Operations
+
+All enhanced response objects support chainable operations:
+
+```ruby
+client.quick_send(to: number, message: text)
+  .on_success { |response| log_success(response.message_id) }
+  .on_error { |response| log_error(response.api_message) }
+
+client.broadcast(to: numbers, message: text)
+  .on_success { |response| puts "Sent to #{response.success_number} recipients" }
+  .on_error { |response| puts "Broadcast failed: #{response.api_message}" }
+```
+
+## Configuration
+
+### Environment Variables
+
+You can set defaults using environment variables:
+
+```bash
+export CELLCAST_API_KEY="your-api-key"
+export CELLCAST_DEFAULT_SENDER_ID="YourBrand"
+export CELLCAST_SANDBOX_MODE="true"  # For testing
+```
+
+```ruby
+# Use environment variables
+client = Cellcast.enhanced_sms(
+  api_key: ENV['CELLCAST_API_KEY'],
+  default_sender_id: ENV['CELLCAST_DEFAULT_SENDER_ID'],
+  sandbox_mode: ENV['CELLCAST_SANDBOX_MODE'] == 'true'
 )
 ```
 
-## Documentation
+### Advanced Configuration
 
-- **[Developer Guide](DEVELOPER.md)** - Complete documentation with examples, API reference, and architecture diagrams
-- **[Changelog](CHANGELOG.md)** - Version history and changes
-- Official API documentation is at https://developer.cellcast.com
+```ruby
+config = Cellcast.configure do |c|
+  c.response_format = :enhanced
+  c.open_timeout = 30
+  c.read_timeout = 60
+  c.auto_retry_failed = true
+  c.max_retries = 3
+  c.retry_delay = 2  # Base delay for exponential backoff
+  c.chunk_size = 100
+  c.low_balance_threshold = 10
+  c.sandbox_mode = false
+end
+
+client = Cellcast.sms(api_key: 'your-key', config: config)
+```
+
+## Testing
+
+### Sandbox Mode
+
+The gem includes a comprehensive sandbox mode for testing without making real API calls:
+
+```ruby
+# Enable sandbox mode
+client = Cellcast.enhanced_sms(
+  api_key: 'test-key',
+  sandbox_mode: true
+)
+
+# Special test numbers trigger different behaviors
+client.quick_send(to: '+15550000000', message: 'Test')  # Always succeeds
+client.quick_send(to: '+15550000001', message: 'Test')  # Always fails
+client.quick_send(to: '+15550000002', message: 'Test')  # Rate limited
+client.quick_send(to: '+15550000003', message: 'Test')  # Invalid number
+client.quick_send(to: '+15550000004', message: 'Test')  # Insufficient credits
+client.quick_send(to: '+15550000005', message: 'Test')  # Low balance (success with alert)
+
+# Test low balance alerts
+response = client.quick_send(to: '+15550000005', message: 'Test')
+if response.low_balance_alert?
+  puts "⚠️ #{response.low_sms_alert}"
+end
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+bundle exec rake test
+
+# Run specific test files
+ruby -I lib test/test_enhanced_convenience.rb
+ruby -I lib test/test_raw_response_format.rb
+ruby -I lib test/test_enhanced_error_handling.rb
+ruby -I lib test/test_helper_classes.rb
+```
+
+## Migration Guide
+
+### From Raw to Enhanced Responses
+
+If you're upgrading from raw response format to enhanced format:
+
+```ruby
+# Before (raw responses)
+if response['meta']['status'] == 'SUCCESS'
+  message_id = response.dig('data', 'messages', 0, 'message_id')
+  credits = response.dig('data', 'credits_used')
+  puts "Sent! ID: #{message_id}, Credits: #{credits}"
+end
+
+# After (enhanced responses)
+if response.success?
+  puts "Sent! ID: #{response.message_id}, Credits: #{response.credits_used}"
+end
+
+# Enhanced responses still support hash access for compatibility
+message_id = response['data']['messages'][0]['message_id']  # Still works
+message_id = response.dig('data', 'messages', 0, 'message_id')  # Still works
+```
+
+### Gradual Migration
+
+You can use `:both` response format to migrate gradually:
+
+```ruby
+client = Cellcast.sms(
+  api_key: 'your-key',
+  response_format: :both  # Enhanced objects with full raw access
+)
+
+response = client.quick_send(to: number, message: text)
+
+# Use enhanced methods
+puts response.success?
+puts response.message_id
+
+# Still access raw data when needed
+puts response.raw_response['data']['messages']
+puts response['meta']['status']  # Hash access still works
+```
+
+## Official API Documentation
+
+This gem strictly aligns with the [official Cellcast API documentation](https://cellcast.com.au/api/documentation/). All endpoints, request formats, and response structures match the official specification.
+
+### Supported Endpoints
+
+- `send-sms` - Send single SMS
+- `bulk-send-sms` - Send bulk SMS  
+- `get-sms` - Get message details
+- `get-responses` - Get inbound messages
+- `send-sms-nz` - Send SMS to New Zealand
+- `send-sms-template` - Send template SMS
+- `inbound-read` - Mark message as read
+- `inbound-read-bulk` - Mark multiple messages as read
+- `register-alpha-id` - Register business name
+- `account` - Get account balance
+- `get-template` - Get SMS templates
+- `get-optout` - Get opt-out list
 
 ## Requirements
 
-- Ruby 3.3.0 or higher
+- Ruby 3.2 or higher
+- No external dependencies (uses only Ruby standard library)
 
 ## Contributing
 
@@ -148,4 +664,8 @@ Bug reports and pull requests are welcome on GitHub at https://github.com/timbur
 
 ## License
 
-Available under the [MIT License](LICENSE.txt).
+The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+
+## Disclaimer
+
+This is an unofficial gem. I am not affiliated with Cellcast. Use at your own risk and always test thoroughly before production use.

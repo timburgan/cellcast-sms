@@ -28,10 +28,10 @@ response = client.quick_send(
   from: "SANDBOX"
 )
 
-puts "   Success: #{response.success?}"
-puts "   Message ID: #{response.message_id}"
-puts "   Status: #{response.status}"
-puts "   Cost: $#{response.cost}"
+puts "   Success: #{response['status']}"
+puts "   Message ID: #{response.dig('data', 'queueResponse', 0, 'MessageId')}"
+puts "   Status: #{response['message']}"
+puts "   Valid contacts: #{response.dig('data', 'totalValidContact')}"
 puts
 
 # Example 3: Test different failure scenarios
@@ -44,9 +44,9 @@ failed_response = client.quick_send(
   message: "This will fail",
   from: "SANDBOX"
 )
-puts "   Success: #{failed_response.success?}"
-puts "   Status: #{failed_response.status}"
-puts "   Failed reason: #{failed_response.raw_response['failed_reason']}"
+puts "   Success: #{failed_response['status']}"
+puts "   Status: #{failed_response['message']}"
+puts "   Error details: #{failed_response['error']}"
 puts
 
 # Test rate limiting
@@ -86,10 +86,10 @@ broadcast_response = client.broadcast(
   from: "SANDBOX"
 )
 
-puts "   Total messages: #{broadcast_response.total_count}"
-puts "   Successful: #{broadcast_response.successful_count}"
-puts "   Failed: #{broadcast_response.failed_count}"
-puts "   Total cost: $#{broadcast_response.total_cost}"
+puts "   Total messages: #{broadcast_response.dig('data', 'totalValidContact') + broadcast_response.dig('data', 'totalInvalidContact')}"
+puts "   Successful: #{broadcast_response.dig('data', 'totalValidContact')}"
+puts "   Failed: #{broadcast_response.dig('data', 'totalInvalidContact')}"
+puts "   Status: #{broadcast_response['status'] ? 'Success' : 'Failed'}"
 puts
 
 # Example 5: Status checking
@@ -100,21 +100,22 @@ delivered_status = client.check_status(message_id: "delivered_msg_123")
 failed_status = client.check_status(message_id: "fail_msg_456")
 pending_status = client.check_status(message_id: "pending_msg_789")
 
-puts "   Delivered message: #{delivered_status.status} (#{delivered_status.delivered?})"
-puts "   Failed message: #{failed_status.status} (#{failed_status.failed?})"
-puts "   Pending message: #{pending_status.status} (#{pending_status.pending?})"
+puts "   Delivered message: #{delivered_status['status']} (#{delivered_status.dig('data', 'status')})"
+puts "   Failed message: #{failed_status['status']} (#{failed_status.dig('data', 'status')})"
+puts "   Pending message: #{pending_status['status']} (#{pending_status.dig('data', 'status')})"
 puts
 
 # Example 6: Incoming messages
 puts "6. Testing incoming messages..."
 
 unread = client.unread_messages
-puts "   Unread messages: #{unread.items.length}"
+puts "   Unread messages: #{unread.dig('data', 'messages')&.length || 0}"
 
-unread.items.each do |message|
-  puts "   From: #{message.from} - '#{message.message}'"
-  puts "   Is reply: #{message.is_reply?}"
-  puts "   Original message ID: #{message.original_message_id}" if message.is_reply?
+messages = unread.dig('data', 'messages') || []
+messages.each do |message|
+  puts "   From: #{message['from']} - '#{message['message']}'"
+  puts "   Is reply: #{message['is_reply']}"
+  puts "   Original message ID: #{message['original_message_id']}" if message['is_reply']
 end
 puts
 
@@ -126,11 +127,11 @@ webhook_response = client.setup_webhook(
   events: ["sms.delivered", "sms.received"]
 )
 
-puts "   Webhook setup success: #{webhook_response.success?}"
-puts "   Webhook ID: #{webhook_response.raw_response['webhook_id']}"
+puts "   Webhook setup success: #{webhook_response['status']}"
+puts "   Webhook ID: #{webhook_response.dig('data', 'webhook_id')}"
 
 test_result = client.test_webhook
-puts "   Webhook test: #{test_result.success? ? 'passed' : 'failed'}"
+puts "   Webhook test: #{test_result['status'] ? 'passed' : 'failed'}"
 puts
 
 # Example 8: Using with testing frameworks
@@ -150,8 +151,8 @@ puts <<~EXAMPLE
        to: "+15550000000",  # Always succeeds in sandbox
        message: "Test message"
      )
-     assert response.success?
-     assert_equal "queued", response.status
+     assert response['status']
+     assert_equal "Request is being processed", response['message']
    end
    
    def test_failed_sms_handling
@@ -159,8 +160,8 @@ puts <<~EXAMPLE
        to: "+15550000001",  # Always fails in sandbox
        message: "Test message"
      )
-     refute response.success?
-     assert_equal "failed", response.status
+     refute response['status']
+     assert response['error']
    end
    
    def test_rate_limiting_handling

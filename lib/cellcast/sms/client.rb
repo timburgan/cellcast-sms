@@ -14,7 +14,7 @@ module Cellcast
 
       attr_reader :api_key, :base_url, :config
 
-      def initialize(api_key:, base_url: "https://api.cellcast.com", config: nil)
+      def initialize(api_key:, base_url: "https://cellcast.com.au/api/v3", config: nil)
         @api_key = validate_api_key(api_key)
         @base_url = base_url.chomp("/")
         @config = config || Configuration.new
@@ -29,11 +29,6 @@ module Cellcast
       # Access to Sender ID API endpoints (business names and custom numbers)
       def sender_id
         @sender_id ||= SenderIdApi.new(self)
-      end
-
-      # Access to Token API endpoints
-      def token
-        @token ||= TokenApi.new(self)
       end
 
       # Access to Account API endpoints (balance and usage reports)
@@ -106,8 +101,9 @@ module Cellcast
                         end
 
         request = request_class.new(uri)
-        request["Authorization"] = "Bearer #{api_key}"
+        request["APPKEY"] = api_key
         request["Content-Type"] = "application/json"
+        request["Accept"] = "application/json"
         request["User-Agent"] = "cellcast-sms-ruby/#{VERSION}"
 
         headers.each { |key, value| request[key] = value }

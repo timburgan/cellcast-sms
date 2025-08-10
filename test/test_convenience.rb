@@ -6,6 +6,7 @@ class TestConvenience < Minitest::Test
   def setup
     config = Cellcast::SMS::Configuration.new
     config.sandbox_mode = true
+    config.response_format = :raw  # Test raw responses for backward compatibility
     @client = Cellcast.sms(api_key: "test_key", config: config)
   end
 
@@ -16,10 +17,10 @@ class TestConvenience < Minitest::Test
       from: "MyBrand"
     )
 
-    assert_instance_of Cellcast::SMS::SendMessageResponse, response
-    assert response.success?
-    assert response.message_id
-    assert_equal "queued", response.status
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
+    assert response.dig("data", "messages", 0, "message_id"), "Should have message_id"
+    assert_equal "Queued", response["msg"]
   end
 
   def test_quick_send_special_test_number_success
@@ -29,10 +30,10 @@ class TestConvenience < Minitest::Test
       from: "MyBrand"
     )
 
-    assert_instance_of Cellcast::SMS::SendMessageResponse, response
-    assert response.success?
-    assert response.message_id
-    assert_equal "queued", response.status
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
+    assert response.dig("data", "messages", 0, "message_id"), "Should have message_id"
+    assert_equal "Queued", response["msg"]
   end
 
   def test_quick_send_special_test_number_failed
@@ -42,9 +43,9 @@ class TestConvenience < Minitest::Test
       from: "MyBrand"
     )
 
-    assert_instance_of Cellcast::SMS::SendMessageResponse, response
-    refute response.success?
-    assert_equal "failed", response.status
+    assert_instance_of Hash, response
+    assert_equal "FAILED", response.dig("meta", "status")
+    assert_equal "Message failed to send", response["msg"]
   end
 
   def test_broadcast
@@ -54,11 +55,11 @@ class TestConvenience < Minitest::Test
       from: "MyBrand"
     )
 
-    assert_instance_of Cellcast::SMS::BulkMessageResponse, response
-    assert response.success?
-    assert_equal 2, response.total_count
-    assert_equal 2, response.successful_count
-    assert_equal 0, response.failed_count
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
+    assert_equal 2, response.dig("data", "total_numbers")
+    assert_equal 2, response.dig("data", "success_number")
+    assert_equal 2, response.dig("data", "messages").length
   end
 
   def test_broadcast_mixed_results
@@ -68,73 +69,86 @@ class TestConvenience < Minitest::Test
       from: "MyBrand"
     )
 
-    assert_instance_of Cellcast::SMS::BulkMessageResponse, response
-    assert response.success?
-    assert_equal 2, response.total_count
-    assert_equal 1, response.successful_count
-    assert_equal 1, response.failed_count
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
+    data = response["data"]
+    assert_equal 2, data["total_numbers"]
+    assert_equal 1, data["success_number"]
+    assert_equal 1, data["messages"].length
+    # Note: Official API doesn't expose invalid contacts in successful responses
   end
 
-  def test_cancel_message
-    # First send a message to get an ID
-    send_response = @client.quick_send(to: "+15550000000", message: "Test")
-    message_id = send_response.message_id
+  def test_get_message_status
+    message_id = "test_message_123"
+    response = @client.get_message_status(message_id: message_id)
 
-    response = @client.cancel_message(message_id: message_id)
-
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
   end
 
-  def test_verify_token
-    response = @client.verify_token
+  def test_get_inbound_messages
+    response = @client.get_inbound_messages(page: 1)
 
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
+  end
+
+  def test_send_to_nz
+    response = @client.send_to_nz(
+      to: "+64211234567",
+      message: "Hello New Zealand!",
+      from: "TEST"
+    )
+
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
+  end
+
+  def test_mark_read
+    response = @client.mark_read(message_id: "inbound_123")
+
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
+  end
+
+  def test_mark_all_read
+    response = @client.mark_all_read
+
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
   end
 
   def test_balance
     response = @client.balance
 
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
+    assert response.dig("data", "sms_balance"), "Should have SMS balance"
+    assert response.dig("data", "mms_balance"), "Should have MMS balance"
   end
 
-  def test_usage_report
-    response = @client.usage_report
+  def test_get_templates
+    response = @client.get_templates
 
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
+    assert response["data"].is_a?(Array), "Templates should be an array"
   end
 
-  def test_register_business
-    response = @client.register_business(
-      business_name: "Test Business",
-      business_registration: "ABN123456789",
-      contact_info: { email: "test@example.com", phone: "+1234567890" }
+  def test_get_optouts
+    response = @client.get_optouts
+
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
+  end
+
+  def test_register_alpha_id
+    response = @client.register_alpha_id(
+      alpha_id: "TEST",
+      purpose: "Marketing notifications"
     )
 
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
-  end
-
-  def test_register_number
-    response = @client.register_number(
-      phone_number: "+1234567890",
-      purpose: "Customer support"
-    )
-
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
-  end
-
-  def test_verify_number
-    response = @client.verify_number(
-      phone_number: "+1234567890",
-      verification_code: "123456"
-    )
-
-    assert_instance_of Cellcast::SMS::Response, response
-    assert response.success?
+    assert_instance_of Hash, response
+    assert_equal "SUCCESS", response.dig("meta", "status")
   end
 end

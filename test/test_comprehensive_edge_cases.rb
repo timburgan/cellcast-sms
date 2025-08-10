@@ -88,7 +88,7 @@ class TestComprehensiveEdgeCases < Minitest::Test
     # Test exactly at the 1000 message limit
     messages_1000 = Array.new(1000) { { to: "+15550000000", message: "Test #{rand(1000)}" } }
     response = @client.sms.send_bulk(messages: messages_1000)
-    assert response["status"]
+    assert response.dig("meta", "status") == "SUCCESS"
 
     # Test just over the limit (1001 messages)
     messages_1001 = Array.new(1001) { { to: "+15550000000", message: "Test #{rand(1000)}" } }
@@ -161,21 +161,22 @@ class TestComprehensiveEdgeCases < Minitest::Test
     endpoints = [
       -> { @client.sms.send_message(to: "+15550000000", message: "Test") },
       -> { @client.sms.send_bulk(messages: [{ to: "+15550000000", message: "Test" }]) },
-      -> { @client.token.verify_token },
-      -> { @client.sender_id.list_sender_ids },
+      -> { @client.sms.get_message(message_id: "sandbox_message_123") },
+      -> { @client.account.get_account_balance },
     ]
 
     endpoints.each_with_index do |endpoint, index|
       response = endpoint.call
       assert response.is_a?(Hash), "Endpoint #{index} should return Hash"
-      assert response.key?("status"), "Endpoint #{index} should have status field"
-      assert [true, false].include?(response["status"]), "Endpoint #{index} status should be boolean"
+      assert response.key?("meta"), "Endpoint #{index} should have meta field"
+      assert response.key?("msg"), "Endpoint #{index} should have msg field"
+      assert response["meta"].key?("status"), "Endpoint #{index} meta should have status field"
     end
 
     # Test endpoints that return different structures (data arrays)
     list_endpoints = [
-      -> { @client.incoming.list_incoming },
-      -> { @client.webhook.get_delivery_logs },
+      -> { @client.sms.get_responses(page: 1) },
+      -> { @client.account.get_account_balance },
     ]
 
     list_endpoints.each_with_index do |endpoint, index|
@@ -206,7 +207,6 @@ class TestComprehensiveEdgeCases < Minitest::Test
     # Test special numbers that raise exceptions
     exception_cases = [
       { number: "+15550000002", exception: Cellcast::SMS::RateLimitError, description: "rate limit" },
-      { number: "+15550000003", exception: Cellcast::SMS::ValidationError, description: "invalid number" },
       { number: "+15550000004", exception: Cellcast::SMS::APIError, description: "insufficient credits" },
     ]
 
@@ -215,6 +215,18 @@ class TestComprehensiveEdgeCases < Minitest::Test
         @client.quick_send(to: test_case[:number], message: "Test")
       end
       assert error.message.length > 0, "#{test_case[:description]} should have error message"
+    end
+
+    # Test special numbers that return failed responses but don't raise exceptions
+    failed_response_cases = [
+      { number: "+15550000001", description: "failed number" },
+      { number: "+15550000003", description: "invalid number" },
+    ]
+
+    failed_response_cases.each do |test_case|
+      response = @client.quick_send(to: test_case[:number], message: "Test")
+      assert_equal "FAILED", response.dig("meta", "status"), "#{test_case[:description]} should return failed status"
+      assert response.error?, "#{test_case[:description]} should be marked as error"
     end
   end
 
@@ -269,57 +281,35 @@ class TestComprehensiveEdgeCases < Minitest::Test
     # Test basic response methods
     assert_respond_to response, :success?
     assert_respond_to response, :message_id
-    assert_respond_to response, :status
-    assert_respond_to response, :cost
-    assert_respond_to response, :parts
-    assert_respond_to response, :failed?
+    assert_respond_to response, :credits_used
+    assert_respond_to response, :total_numbers
+    assert_respond_to response, :success_number
+    assert_respond_to response, :error?
     assert_respond_to response, :to_h
     assert_respond_to response, :[]
 
     # Test hash-like access
-    refute_nil response["status"]
-    refute_nil response[:status]
-
+    refute_nil response["meta"]
+    
     # Test data types
     assert_kind_of String, response.message_id
-    assert_kind_of String, response.status
-    assert_kind_of Numeric, response.cost
-    assert_kind_of Integer, response.parts
+    assert_kind_of Integer, response.credits_used
+    assert_kind_of Integer, response.total_numbers
+    assert_kind_of Integer, response.success_number
     assert [true, false].include?(response.success?)
-    assert [true, false].include?(response.failed?)
+    assert [true, false].include?(response.error?)
   end
 
-  def test_webhook_url_validation_edge_cases
-    # Test comprehensive URL validation
-    valid_urls = [
-      "https://example.com",
-      "http://localhost:3000",
-      "https://subdomain.example.com/path",
-      "https://example.com:8080/webhook",
-      "https://example.com/path?query=value",
-      "https://example.com/path#fragment",
-    ]
-
-    valid_urls.each do |url|
-      response = @client.webhook.configure_webhook(url: url, events: ["sms.sent"])
-      assert response.is_a?(Hash), "Should return response for valid URL: #{url}"
-      assert response.key?("webhook_id") || response.key?("status"), "Should have webhook response structure"
-    end
-
-    invalid_urls = [
-      "",
-      "not-a-url",
-      "ftp://example.com",
-      "mailto:test@example.com",
-      "javascript:alert('xss')",
-      "//example.com", # Protocol relative
-    ]
-
-    invalid_urls.each do |url|
-      error = assert_raises(Cellcast::SMS::ValidationError) do
-        @client.webhook.configure_webhook(url: url, events: ["sms.sent"])
-      end
-      assert error.message.length > 0, "Should reject invalid URL: #{url}"
+  def test_inbound_message_pagination_edge_cases
+    # Test edge cases for inbound message pagination
+    pages_to_test = [1, 2, 100, 999]
+    
+    pages_to_test.each do |page|
+      response = @client.sms.get_responses(page: page)
+      assert response.is_a?(Hash), "Should return response for page #{page}"
+      assert response.key?("meta"), "Response should have meta field"
+      assert response.key?("msg"), "Response should have msg field"
+      assert response.key?("data"), "Response should have data field"
     end
   end
 end

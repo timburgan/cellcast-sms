@@ -10,7 +10,7 @@ class TestClient < Minitest::Test
 
   def test_client_initialization
     assert_equal @api_key, @client.api_key
-    assert_equal "https://api.cellcast.com", @client.base_url
+    assert_equal "https://cellcast.com.au/api/v3", @client.base_url
     assert_instance_of Cellcast::SMS::Configuration, @client.config
   end
 
@@ -42,16 +42,21 @@ class TestClient < Minitest::Test
   def test_api_endpoints_accessible
     assert_instance_of Cellcast::SMS::SMSApi, @client.sms
     assert_instance_of Cellcast::SMS::SenderIdApi, @client.sender_id
-    assert_instance_of Cellcast::SMS::TokenApi, @client.token
     assert_instance_of Cellcast::SMS::AccountApi, @client.account
   end
 
   def test_convenience_methods_available
     assert_respond_to @client, :quick_send
     assert_respond_to @client, :broadcast
-    assert_respond_to @client, :delivered?
-    assert_respond_to @client, :check_status
-    assert_respond_to @client, :unread_messages
-    assert_respond_to @client, :setup_webhook
+    assert_respond_to @client, :get_message_status
+    assert_respond_to @client, :get_inbound_messages
+    assert_respond_to @client, :send_to_nz
+    assert_respond_to @client, :balance
+    assert_respond_to @client, :get_templates
+    assert_respond_to @client, :get_optouts
+    assert_respond_to @client, :register_alpha_id
+    assert_respond_to @client, :send_template
+    assert_respond_to @client, :mark_read
+    assert_respond_to @client, :mark_all_read
   end
 end

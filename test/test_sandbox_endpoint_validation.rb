@@ -17,31 +17,36 @@ class TestSandboxEndpointValidation < Minitest::Test
   def test_valid_endpoints_work
     # Test all officially documented endpoints only
     valid_tests = [
-      { method: :post, path: "api/v1/gateway", body: { to: "+15550000000", message: "test" } },
-      { method: :post, path: "api/v1/gateway", body: { messages: [{ to: "+15550000000", message: "test" }] } }, # Bulk via same endpoint
-      { method: :delete, path: "api/v1/gateway/messages/test123" },
-      { method: :get, path: "api/v1/user/token/verify" },
-      { method: :post, path: "api/v1/business/add", body: { business_name: "Test", business_registration: "123", contact_info: { email: "test@example.com", phone: "+1234567890" } } },
-      { method: :post, path: "api/v1/customNumber/add", body: { phone_number: "+1234567890", purpose: "Support" } },
-      { method: :post, path: "api/v1/customNumber/verifyCustomNumber", body: { phone_number: "+1234567890", verification_code: "123456" } },
-      { method: :get, path: "api/v1/apiClient/account" },
-      { method: :get, path: "api/v2/report/message/quick-api-credit-usage" }
+      { method: :post, path: "send-sms", body: { sms_text: "test", numbers: ["+15550000000"] } },
+      { method: :post, path: "bulk-send-sms", body: { sms_text: "test", numbers: ["+15550000000", "+15550000001"] } },
+      { method: :get, path: "get-sms", query: "message_id=test123" },
+      { method: :get, path: "get-responses", query: "page=1&type=sms" },
+      { method: :post, path: "send-sms-nz", body: { sms_text: "test", numbers: ["+6421234567"] } },
+      { method: :post, path: "send-sms-template", body: { template_id: "123", numbers: [{ number: "+15550000000", fname: "John" }] } },
+      { method: :post, path: "inbound-read", body: { message_id: "test123" } },
+      { method: :post, path: "inbound-read-bulk", body: {} },
+      { method: :post, path: "register-alpha-id", body: { alpha_id: "TEST", purpose: "Marketing" } },
+      { method: :get, path: "account" },
+      { method: :get, path: "get-template" },
+      { method: :get, path: "get-optout" }
     ]
 
     valid_tests.each do |test|
       result = @sandbox_handler.handle_request(
         method: test[:method], 
         path: test[:path], 
-        body: test[:body]
+        body: test[:body],
+        query: test[:query]
       )
       
       assert result, "Valid endpoint #{test[:method].upcase} #{test[:path]} should work"
       assert result.is_a?(Hash), "Result should be a hash"
+      assert result["meta"], "Response should have meta structure"
     end
   end
 
   def test_invalid_endpoints_are_rejected
-    # Test invalid endpoints that should be rejected (including previously supported but undocumented ones)
+    # Test invalid endpoints that should be rejected (including old API v1 endpoints)
     invalid_tests = [
       { method: :get, path: "nonexistent/endpoint" },
       { method: :post, path: "sms/invalid" },
@@ -49,11 +54,13 @@ class TestSandboxEndpointValidation < Minitest::Test
       { method: :delete, path: "sms/wrong/delete/path" },
       { method: :put, path: "completely/wrong" },
       { method: :get, path: "api/wrong/version" },
-      # Previously supported but undocumented endpoints
-      { method: :post, path: "api/v1/gateway/bulk" },
-      { method: :get, path: "api/v1/gateway/status/test123" },
-      { method: :get, path: "api/v1/gateway/delivery/test123" },
-      { method: :get, path: "api/v1/gateway/messages" },
+      # Old API v1 endpoints that no longer exist
+      { method: :post, path: "api/v1/gateway" },
+      { method: :delete, path: "api/v1/gateway/messages/test123" },
+      { method: :get, path: "api/v1/user/token/verify" },
+      { method: :post, path: "api/v1/business/add" },
+      { method: :post, path: "api/v1/customNumber/add" },
+      { method: :get, path: "api/v1/apiClient/account" },
       { method: :get, path: "api/v1/incoming" },
       { method: :post, path: "api/v1/incoming/mark-read" },
       { method: :get, path: "api/v1/incoming/replies/test123" },
@@ -82,47 +89,44 @@ class TestSandboxEndpointValidation < Minitest::Test
     end
   end
 
-  def test_delete_message_endpoint_consistency
-    # Verify the delete message endpoint uses correct path
+  def test_get_message_endpoint_consistency
+    # Verify the get message endpoint uses correct path
     message_id = "test_message_123"
     
     # This should work (current implementation)
     response = @sandbox_handler.handle_request(
-      method: :delete,
-      path: "api/v1/gateway/messages/#{message_id}",
-      body: nil
+      method: :get,
+      path: "get-sms",
+      query: "message_id=#{message_id}"
     )
     
-    assert response["status"], "Delete message endpoint should work"
-    assert_equal message_id, response["data"]["message_id"]
+    assert response["meta"], "Get message endpoint should return meta structure"
+    assert_equal "SUCCESS", response["meta"]["status"]
     
     # These should fail (wrong paths that don't match any endpoint)
     wrong_paths = [
-      "sms/delete/#{message_id}",
-      "delete/#{message_id}",
-      "api/v2/gateway/messages/#{message_id}"
+      "sms/get/#{message_id}",
+      "get/#{message_id}",
+      "api/v1/gateway/messages/#{message_id}"
     ]
     
     wrong_paths.each do |wrong_path|
       assert_raises(Cellcast::SMS::APIError) do
         @sandbox_handler.handle_request(
-          method: :delete,
+          method: :get,
           path: wrong_path,
           body: nil
         )
       end
     end
-    
-    # Note: sms/messages/test123 matches the list messages endpoint,
-    # which is correct behavior for the API
   end
 
-  def test_method_validation_for_delete_endpoint
-    # Test that non-DELETE methods on delete endpoint are handled correctly
+  def test_method_validation_for_get_message_endpoint
+    # Test that non-GET methods on get message endpoint are handled correctly
     message_id = "test_message_123"
-    path = "api/v1/gateway/messages/#{message_id}"
+    path = "get-sms"
     
-    wrong_methods = [:get, :post, :put, :patch]
+    wrong_methods = [:post, :put, :delete, :patch]
     
     wrong_methods.each do |method|
       # The delete handler should return success for non-DELETE methods
