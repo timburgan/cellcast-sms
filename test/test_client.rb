@@ -10,7 +10,7 @@ class TestClient < Minitest::Test
 
   def test_client_initialization
     assert_equal @api_key, @client.api_key
-    assert_equal "https://api.cellcast.com", @client.base_url
+    assert_equal "https://cellcast.com.au/api/v3", @client.base_url
     assert_instance_of Cellcast::SMS::Configuration, @client.config
   end
 

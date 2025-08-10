@@ -51,7 +51,14 @@ module Cellcast
 
       def handle_sandbox_request(method:, path:, body: nil)
         @sandbox_handler ||= SandboxHandler.new(logger: config.logger, base_url: base_url)
-        @sandbox_handler.handle_request(method: method, path: path, body: body)
+        
+        # For GET requests, extract query parameters from path
+        query = nil
+        if method == :get && path.include?('?')
+          path, query = path.split('?', 2)
+        end
+        
+        @sandbox_handler.handle_request(method: method, path: path, body: body, query: query)
       end
 
       def validate_api_key(key)
