@@ -19,15 +19,24 @@ begin
     from: 'YourBrand'
   )
   
-  if response['status']
+  if response['meta'] && response['meta']['status'] == 'SUCCESS'
     puts "✅ Message sent successfully!"
-    queue_response = response.dig('data', 'queueResponse', 0)
-    if queue_response
-      puts "   Message ID: #{queue_response['MessageId']}"
-      puts "   Result: #{queue_response['Result']}"
-      puts "   Contact: #{queue_response['Contact']}"
+    messages = response.dig('data', 'messages')
+    if messages && messages.first
+      message = messages.first
+      puts "   Message ID: #{message['message_id']}"
+      puts "   To: #{message['to']}"
+      puts "   From: #{message['from']}"
+      puts "   Body: #{message['body']}"
+      puts "   Date: #{message['date']}"
     end
-    puts "   API Message: #{response['message']}"
+    puts "   API Message: #{response['msg']}"
+    puts "   Total Numbers: #{response.dig('data', 'total_numbers')}"
+    puts "   Success Numbers: #{response.dig('data', 'success_number')}"
+    puts "   Credits Used: #{response.dig('data', 'credits_used')}"
+  else
+    puts "❌ Message failed to send"
+    puts "   Error: #{response['msg']}" if response['msg']
   end
   
 rescue Cellcast::SMS::ValidationError => e
@@ -50,23 +59,19 @@ begin
   
   puts "📢 Broadcast Results:"
   
-  if broadcast_response['status']
+  if broadcast_response['meta'] && broadcast_response['meta']['status'] == 'SUCCESS'
     data = broadcast_response['data']
-    puts "   Total valid contacts: #{data['totalValidContact']}"
-    puts "   Total invalid contacts: #{data['totalInvalidContact']}"
-    puts "   API Message: #{broadcast_response['message']}"
+    puts "   Total numbers: #{data['total_numbers']}"
+    puts "   Success numbers: #{data['success_number']}"
+    puts "   Credits used: #{data['credits_used']}"
+    puts "   API Message: #{broadcast_response['msg']}"
     
-    # Show individual queue responses
-    data['queueResponse'].each do |queue_item|
-      puts "   ✅ #{queue_item['Contact']}: #{queue_item['Result']}"
-    end
-    
-    # Show invalid contacts
-    data['invalidContacts'].each do |invalid|
-      puts "   ❌ #{invalid}: Invalid contact"
+    # Show individual messages
+    data['messages'].each do |message|
+      puts "   ✅ #{message['to']}: Message ID #{message['message_id']}"
     end
   else
-    puts "   ❌ Broadcast failed: #{broadcast_response['message']}"
+    puts "   ❌ Broadcast failed: #{broadcast_response['msg']}"
   end
   
 rescue Cellcast::SMS::ValidationError => e
@@ -79,67 +84,102 @@ puts "\n=== Example 3: Account Management ==="
 
 # Check account balance
 balance = client.balance
-puts "💰 Current balance: $#{balance.dig('data', 'balance') || 'Unknown'}"
+if balance['meta'] && balance['meta']['status'] == 'SUCCESS'
+  puts "💰 Current balance:"
+  puts "   SMS Balance: $#{balance.dig('data', 'sms_balance') || 'Unknown'}"
+  puts "   MMS Balance: $#{balance.dig('data', 'mms_balance') || 'Unknown'}"
+  puts "   Account Name: #{balance.dig('data', 'account_name') || 'Unknown'}"
+  puts "   Account Email: #{balance.dig('data', 'account_email') || 'Unknown'}"
+else
+  puts "❌ Failed to get balance: #{balance['msg']}"
+end
 
-# Get usage statistics
-usage = client.usage_report
-puts "📊 Usage Statistics:"
-puts "   Messages sent: #{usage.dig('data', 'messages_sent') || 'Unknown'}"
-puts "   Total cost: $#{usage.dig('data', 'total_cost') || 'Unknown'}"
+# Get templates
+templates = client.get_templates
+if templates['meta'] && templates['meta']['status'] == 'SUCCESS'
+  puts "📋 Available Templates: #{templates['data'].length} templates found"
+  templates['data'].each do |template|
+    puts "   Template ID: #{template['id']} - #{template['name']}"
+  end
+else
+  puts "❌ Failed to get templates: #{templates['msg']}"
+end
 
 # Example 4: Sender ID Management
 puts "\n=== Example 4: Sender ID Management ==="
 
 begin
-  # Register a business name
-  business_response = client.sender_id.register_business_name(
-    business_name: 'Your Company Ltd',
-    business_registration: 'REG123456',
-    contact_info: {
-      email: 'contact@yourcompany.com',
-      phone: '+1234567890'
-    }
+  # Register an Alpha ID (business name)
+  alpha_response = client.register_alpha_id(
+    alpha_id: 'YourBrand',
+    purpose: 'Marketing and notifications'
   )
   
-  puts "🏢 Business registration status: #{business_response['status'] ? 'Success' : 'Failed'}"
-  puts "   Message: #{business_response['message']}"
-  
-  # Register a custom number
-  number_response = client.sender_id.register_custom_number(
-    phone_number: '+1234567890',
-    purpose: 'Customer support notifications'
-  )
-  
-  puts "📞 Custom number registration: #{number_response['status'] ? 'Success' : 'Failed'}"
-  puts "   Message: #{number_response['message']}"
+  if alpha_response['meta'] && alpha_response['meta']['status'] == 'SUCCESS'
+    puts "🏢 Alpha ID registration: Success"
+    puts "   Message: #{alpha_response['msg']}"
+  else
+    puts "❌ Alpha ID registration failed: #{alpha_response['msg']}"
+  end
   
 rescue Cellcast::SMS::APIError => e
   puts "❌ Registration Error: #{e.message}"
   puts "   Attempted URL: #{e.requested_url}"
 end
 
-# Example 5: Message Cancellation
-puts "\n=== Example 5: Message Cancellation ==="
+# Example 5: Get Message Status and Inbound Messages
+puts "\n=== Example 5: Message Status and Inbound Messages ==="
 
 begin
-  # Cancel a scheduled message
-  cancel_response = client.cancel_message(message_id: 'msg_example_123')
+  # Get status of a sent message (requires actual message ID)
+  # status_response = client.get_message_status(message_id: 'actual_message_id_here')
+  # puts "📋 Message Status: #{status_response['msg']}"
   
-  if cancel_response['status']
-    puts "✅ Message cancelled successfully"
-    puts "   Message: #{cancel_response['message']}"
+  # Get inbound messages
+  inbound_response = client.get_inbound_messages(page: 1)
+  
+  if inbound_response['meta'] && inbound_response['meta']['status'] == 'SUCCESS'
+    puts "📨 Inbound Messages:"
+    if inbound_response['data'] && inbound_response['data'].any?
+      inbound_response['data'].each do |message|
+        puts "   From: #{message['from']} - #{message['body']}"
+        puts "   Date: #{message['date']}"
+        puts "   Message ID: #{message['message_id']}"
+      end
+    else
+      puts "   No inbound messages found"
+    end
   else
-    puts "❌ Could not cancel message: #{cancel_response['message']}"
+    puts "❌ Failed to get inbound messages: #{inbound_response['msg']}"
   end
   
 rescue Cellcast::SMS::APIError => e
-  puts "❌ Cancellation Error: #{e.message}"
-  puts "   This may mean the message was already sent"
-  puts "   Attempted URL: #{e.requested_url}"
+  puts "❌ Error getting messages: #{e.message}"
 end
 
-# Example 6: Robust error handling with helpful messages
-puts "\n=== Example 6: Error Handling ==="
+# Example 6: New Zealand SMS
+puts "\n=== Example 6: New Zealand SMS ==="
+
+begin
+  nz_response = client.send_to_nz(
+    to: '+64211234567',  # New Zealand number
+    message: 'Hello from New Zealand API!',
+    from: 'YourBrand'
+  )
+  
+  if nz_response['meta'] && nz_response['meta']['status'] == 'SUCCESS'
+    puts "✅ New Zealand SMS sent successfully!"
+    puts "   Message: #{nz_response['msg']}"
+  else
+    puts "❌ New Zealand SMS failed: #{nz_response['msg']}"
+  end
+  
+rescue Cellcast::SMS::APIError => e
+  puts "❌ NZ SMS Error: #{e.message}"
+end
+
+# Example 7: Robust error handling with helpful messages
+puts "\n=== Example 7: Error Handling ==="
 
 begin
   # This will demonstrate various error types with helpful messages
@@ -176,8 +216,8 @@ rescue Cellcast::SMS::NetworkError => e
   # Automatic retries would have already been attempted
 end
 
-# Example 7: Custom configuration for advanced use cases
-puts "\n=== Example 7: Custom Configuration ==="
+# Example 8: Custom configuration for advanced use cases
+puts "\n=== Example 8: Custom Configuration ==="
 
 # Create custom configuration for high-throughput applications
 config = Cellcast.configure do |c|

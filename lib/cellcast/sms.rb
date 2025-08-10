@@ -10,7 +10,6 @@ require_relative "sms/convenience"
 require_relative "sms/client"
 require_relative "sms/sms_api"
 require_relative "sms/sender_id_api"
-require_relative "sms/token_api"
 require_relative "sms/account_api"
 
 module Cellcast
@@ -20,7 +19,7 @@ module Cellcast
     # @param base_url [String] The base URL for the Cellcast API
     # @param config [Configuration] Configuration object for timeouts and retries
     # @return [Cellcast::SMS::Client] A new client instance
-    def self.new(api_key:, base_url: "https://api.cellcast.com", config: nil)
+    def self.new(api_key:, base_url: "https://cellcast.com.au/api/v3", config: nil)
       Client.new(api_key: api_key, base_url: base_url, config: config)
     end
 

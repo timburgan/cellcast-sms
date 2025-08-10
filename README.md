@@ -1,17 +1,20 @@
 # Cellcast SMS
 
-> **Note**: This is an unofficial gem that wraps the [official Cellcast API](https://developer.cellcast.com). I built this for me own use to make my life easier.
+> **Note**: This is an unofficial gem that wraps the [official Cellcast API](https://cellcast.com.au/api/documentation/). I built this for my own use to make my life easier.
 
-A Ruby gem for the Cellcast API focused on SMS sending, account management, and sender ID registration. Simple, reliable SMS delivery with a developer-friendly interface.
+A Ruby gem for the Cellcast API focused on SMS sending, account management, and sender ID registration. Simple, reliable SMS delivery with a developer-friendly interface that returns raw API responses directly.
 
 ## Features
 
 - **Send SMS**: Individual messages and bulk broadcasts
-- **Account Management**: Check balance and usage reports
-- **Sender ID Management**: Register business names and custom numbers
+- **Account Management**: Check balance, get templates, and opt-out lists
+- **Sender ID Management**: Register Alpha IDs (business names)
+- **Inbound Messages**: Retrieve and manage incoming SMS responses
+- **New Zealand SMS**: Dedicated endpoint for NZ numbers
+- **Template Messages**: Send SMS using predefined templates
 - **Zero Configuration**: Sensible defaults with automatic retries and error handling
-- **Developer Friendly**: Structured response objects and helpful error messages  
-- **Ruby 3.3+**: Uses only Ruby standard library, no external dependencies
+- **Developer Friendly**: Raw API responses with official Cellcast structure
+- **Ruby 3.2+**: Uses only Ruby standard library, no external dependencies
 
 ## Quick Start
 
@@ -43,9 +46,13 @@ response = client.quick_send(
   from: 'YourBrand'
 )
 
-if response['status']
-  message_id = response.dig('data', 'queueResponse', 0, 'MessageId')
+if response['meta'] && response['meta']['status'] == 'SUCCESS'
+  messages = response.dig('data', 'messages')
+  message_id = messages.first['message_id'] if messages&.first
   puts "Message sent! ID: #{message_id}"
+  puts "Credits used: #{response.dig('data', 'credits_used')}"
+else
+  puts "Failed: #{response['msg']}"
 end
 
 # Send to multiple recipients

@@ -2,25 +2,32 @@
 
 module Cellcast
   module SMS
-    # Account API endpoints implementation - only officially documented endpoints
-    # Based on official Cellcast API documentation
+    # Account API endpoints implementation - based on official Cellcast API documentation
+    # Base URL: https://cellcast.com.au/api/v3/
     class AccountApi
       def initialize(client)
         @client = client
       end
 
       # Get account balance and details
-      # Official endpoint: GET https://api.cellcast.com/api/v1/apiClient/account
-      # @return [Hash] API response with account balance and details
+      # Official endpoint: GET https://cellcast.com.au/api/v3/account
+      # @return [Hash] API response with account balance and details including sms_balance, mms_balance
       def get_account_balance
-        @client.request(method: :get, path: "api/v1/apiClient/account")
+        @client.request(method: :get, path: "account")
       end
 
-      # Get quick API credit usage statistics
-      # Official endpoint: GET https://api.cellcast.com/api/v2/report/message/quick-api-credit-usage
-      # @return [Hash] API response with usage statistics
-      def get_usage_report
-        @client.request(method: :get, path: "api/v2/report/message/quick-api-credit-usage")
+      # Get SMS templates
+      # Official endpoint: GET https://cellcast.com.au/api/v3/get-template
+      # @return [Hash] API response with available SMS templates
+      def get_templates
+        @client.request(method: :get, path: "get-template")
+      end
+
+      # Get opt-out list
+      # Official endpoint: GET https://cellcast.com.au/api/v3/get-optout
+      # @return [Hash] API response with opt-out numbers
+      def get_optout_list
+        @client.request(method: :get, path: "get-optout")
       end
     end
   end
