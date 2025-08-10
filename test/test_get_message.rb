@@ -73,7 +73,9 @@ class TestGetMessage < Minitest::Test
 
     response = @client.get_message_status(message_id: message_id)
 
-    assert response.is_a?(Hash), "Response should be a hash"
+    # The convenience method returns an enhanced response object
+    assert response.is_a?(Cellcast::SMS::MessageDetailsResponse), "Response should be an enhanced response object"
+    assert response.success?, "Response should be successful"
     assert_equal "SUCCESS", response.dig("meta", "status")
   end
 

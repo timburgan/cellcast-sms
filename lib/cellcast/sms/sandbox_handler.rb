@@ -215,20 +215,37 @@ module Cellcast
 
       # Handle get SMS message (official API endpoint: get-sms)
       def handle_get_message(message_id)
-        {
-          "meta" => { "code" => 200, "status" => "SUCCESS" },
-          "msg" => "Record founded",
-          "data" => [
-            {
-              "to" => "+61400000000",
-              "body" => "Test message content",
-              "sent_time" => Time.now.strftime("%Y-%m-%d %H:%M:%S"),
-              "message_id" => message_id,
-              "status" => "Delivered",
-              "subaccount_id" => ""
-            }
-          ]
-        }
+        # Handle special sandbox message IDs for testing error scenarios
+        case message_id
+        when "sandbox_notfound_123"
+          {
+            "meta" => { "code" => 404, "status" => "ERROR" },
+            "msg" => "Message not found",
+            "data" => []
+          }
+        when "sandbox_fail_123"
+          {
+            "meta" => { "code" => 500, "status" => "ERROR" },
+            "msg" => "Failed to retrieve message",
+            "data" => []
+          }
+        else
+          # Standard successful response
+          {
+            "meta" => { "code" => 200, "status" => "SUCCESS" },
+            "msg" => "Record found",
+            "data" => [
+              {
+                "to" => "+61400000000",
+                "body" => "Test message content",
+                "sent_time" => Time.now.strftime("%Y-%m-%d %H:%M:%S"),
+                "message_id" => message_id,
+                "status" => "Delivered",
+                "subaccount_id" => ""
+              }
+            ]
+          }
+        end
       end
 
       # Handle get responses (official API endpoint: get-responses)

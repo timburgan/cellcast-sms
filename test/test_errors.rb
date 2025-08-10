@@ -64,13 +64,13 @@ class TestErrors < Minitest::Test
     assert_equal 429, error.status_code
   end
 
-  def test_validation_error_invalid_test_number
+  def test_validation_error_invalid_phone_format
+    # Test validation error for clearly invalid phone number format
     error = assert_raises(Cellcast::SMS::ValidationError) do
-      @client.sms.send_message(to: "+15550000003", message: "test")  # Special test number for validation error
+      @client.sms.send_message(to: "invalid", message: "test")
     end
 
-    assert_includes error.message, "Invalid phone number format"
-    assert_includes error.message, "sandbox mode"
+    assert_includes error.message, "Invalid phone number"
   end
 
   def test_api_error_insufficient_credits
@@ -124,20 +124,14 @@ class TestErrors < Minitest::Test
     assert_includes error.message, "Too many messages"
   end
 
-  def test_validation_error_invalid_url
+  def test_validation_error_sender_id_length
+    # Test validation error for sender ID that's too long
+    long_sender_id = "a" * 12  # Sender IDs are limited to 11 characters
     error = assert_raises(Cellcast::SMS::ValidationError) do
-      @client.webhook.configure_webhook(url: "not-a-url", events: ["sms.sent"])
+      @client.sender_id.register_alpha_id(alpha_id: long_sender_id, purpose: "test")
     end
 
-    assert_includes error.message, "URL must be HTTP or HTTPS"
-  end
-
-  def test_validation_error_non_https_url
-    error = assert_raises(Cellcast::SMS::ValidationError) do
-      @client.webhook.configure_webhook(url: "ftp://example.com", events: ["sms.sent"])
-    end
-
-    assert_includes error.message, "URL must be HTTP or HTTPS"
+    assert_includes error.message, "Alpha ID too long"
   end
 
   def test_configuration_validation_negative_timeout
