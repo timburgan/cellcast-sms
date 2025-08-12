@@ -12,6 +12,7 @@ module Cellcast
 
       # Check if the API call was successful
       def success?
+        return false unless @raw_response.is_a?(Hash)
         @raw_response.dig('meta', 'status') == 'SUCCESS'
       end
 
@@ -37,6 +38,7 @@ module Cellcast
 
       # Enable dig access for backward compatibility
       def dig(*keys)
+        return nil unless @raw_response.respond_to?(:dig)
         @raw_response.dig(*keys)
       end
 
@@ -228,6 +230,10 @@ module Cellcast
     end
 
     # Wrapper for individual inbound messages
+    # 
+    # NOTE: Inbound messages do NOT have a 'to' field - they are replies TO your system.
+    # The available fields are: from, body, received_at, message_id, custom_string, 
+    # original_body, original_message_id, subaccount_id
     class InboundMessage
       def initialize(message_data)
         @data = message_data
@@ -245,23 +251,40 @@ module Cellcast
 
       # Get message received timestamp
       def received_at
-        return nil unless @data['received_date']
-        Time.parse(@data['received_date'])
+        ts = @data['received_at'] || @data['received_date'] || @data['date']
+        return nil unless ts
+        
+        # Handle different date formats
+        case ts
+        when /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}$/
+          # Format: 2025/08/12 16:29:29
+          Time.strptime(ts, '%Y/%m/%d %H:%M:%S')
+        when /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+          # Format: 2025-08-12 16:29:29
+          Time.strptime(ts, '%Y-%m-%d %H:%M:%S')
+        else
+          # Try standard parsing for other formats
+          Time.parse(ts)
+        end
       rescue ArgumentError
         nil
       end
 
       # Get message ID
       def message_id
-        @data['messageId']
+        @data['message_id'] || @data['messageId'] || @data['id']
       end
 
       # Check if message has been read
+      # NOTE: The v3 get-responses endpoint only returns UNREAD messages,
+      # so this will typically return false. Messages with read=true would
+      # not appear in get-responses results.
       def read?
-        @data['read'] == '1' || @data['read'] == true
-      end
-
-      # Check if message is unread
+        val = @data.key?('read') ? @data['read'] : @data['is_read']
+        return (val == '1' || val == 1 || val == true) unless val.nil?
+        # v3 get-responses returns unread messages and does not include a read flag
+        false
+      end      # Check if message is unread
       def unread?
         !read?
       end
@@ -284,10 +307,32 @@ module Cellcast
     end
 
     # Response wrapper for inbound messages operations
+    # 
+    # IMPORTANT: The Cellcast API v3 get-responses endpoint returns UNREAD messages only.
+    # Messages are NOT automatically marked as read when fetched - they persist across
+    # multiple calls until explicitly marked as read using the inbound-read endpoints.
+    # 
+    # This design allows safe polling: you can call get_inbound_messages multiple times
+    # and get the same unread messages each time, then mark them as read only after
+    # successful processing.
     class InboundMessagesResponse < BaseResponse
-      # Get array of message data
+      # Get array of message data from the API response
+      # The v3 API returns inbound messages in data.responses (not data.messages)
       def messages_data
-        @raw_response.dig('data', 'data') || []
+        return [] unless @raw_response.is_a?(Hash)
+        
+        data = @raw_response['data'] || {}
+        responses = data['responses'] || data['data'] || data['messages'] || []
+        
+        # Ensure we return an array even if responses is a string or nil
+        case responses
+        when Array
+          responses
+        when Hash
+          [responses]
+        else
+          []
+        end
       end
 
       # Get wrapped message objects
@@ -319,17 +364,35 @@ module Cellcast
 
       # Get current page number
       def current_page
-        @raw_response.dig('data', 'current_page') || 1
+        data = @raw_response['data'] || {}
+        cp = data['current_page']
+        return cp if cp.is_a?(Integer)
+        if data['page'].is_a?(Hash)
+          num = data['page']['number']
+          return num.to_i if num
+        end
+        if data['page'].is_a?(Integer)
+          return data['page']
+        end
+        1
       end
 
       # Get total number of pages
       def total_pages
-        @raw_response.dig('data', 'last_page') || 1
+        data = @raw_response['data'] || {}
+        lp = data['last_page']
+        return lp if lp.is_a?(Integer)
+        if data['page'].is_a?(Hash) && data['page']['count']
+          return data['page']['count'].to_i
+        end
+        1
       end
 
       # Get total number of messages across all pages
       def total_messages
-        @raw_response.dig('data', 'total')
+        total = @raw_response.dig('data', 'total')
+        return total.to_i if total.is_a?(String) && total.match?(/^\d+$/)
+        total
       end
 
       # Get messages per page
@@ -405,7 +468,19 @@ module Cellcast
       def delivered_at
         date_field = message&.dig('delivered_date') || message&.dig('sent_time')
         return nil unless date_field
-        Time.parse(date_field)
+        
+        # Handle different date formats
+        case date_field
+        when /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}$/
+          # Format: 2025/08/12 16:29:29
+          Time.strptime(date_field, '%Y/%m/%d %H:%M:%S')
+        when /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+          # Format: 2025-08-12 16:29:29
+          Time.strptime(date_field, '%Y-%m-%d %H:%M:%S')
+        else
+          # Try standard parsing for other formats
+          Time.parse(date_field)
+        end
       rescue ArgumentError
         nil
       end

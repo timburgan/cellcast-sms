@@ -207,25 +207,47 @@ puts "Final status: #{final_status.status}"
 puts "Delivered at: #{final_status.delivered_at}" if final_status.delivered?
 
 # Get inbound messages with pagination
+# IMPORTANT: Messages persist across multiple calls until explicitly marked as read
 inbound = client.get_inbound_messages(page: 1)
 
 puts "Current page: #{inbound.current_page}/#{inbound.total_pages}"
 puts "Messages on this page: #{inbound.message_count}"
 
-# Iterate through messages
+# Iterate through messages (note: no 'to' field on inbound messages)
 inbound.each_message do |message|
   puts "From #{message.from}: #{message.body}"
   puts "Received: #{message.received_at}"
-  puts "Read: #{message.read? ? 'Yes' : 'No'}"
+  puts "Message ID: #{message.message_id}"
+  puts "Read: #{message.read? ? 'Yes' : 'No'}"  # Usually 'No' since get-responses returns unread only
 end
 
-# Get all unread messages across all pages
-unread_messages = client.get_all_inbound_messages(unread_only: true)
-puts "You have #{unread_messages.length} unread messages"
+# Safe polling pattern for production systems
+def process_inbound_messages
+  messages = client.get_inbound_messages
+  processed_ids = []
+  
+  messages.each_message do |msg|
+    begin
+      # Process your message here
+      handle_inbound_sms(msg.from, msg.body)
+      processed_ids << msg.message_id
+    rescue => e
+      logger.error "Failed to process message #{msg.message_id}: #{e}"
+      # Don't mark as read if processing failed
+    end
+  end
+  
+  # Only mark successfully processed messages as read
+  if processed_ids.any?
+    client.mark_messages_read(message_ids: processed_ids)
+  end
+end
 
-# Mark all unread messages as read
-marked_count = client.mark_all_unread_as_read
-puts "Marked #{marked_count} messages as read"
+# Alternative: Mark all current messages as read at once
+client.mark_all_read
+
+# Or mark messages older than a specific time
+client.mark_messages_read(before: 1.hour.ago)
 ```
 
 ### Advanced Features
@@ -632,6 +654,68 @@ puts response.message_id
 # Still access raw data when needed
 puts response.raw_response['data']['messages']
 puts response['meta']['status']  # Hash access still works
+```
+
+## Troubleshooting
+
+### Inbound Message Issues
+
+**Problem**: "Messages disappear after first fetch"  
+**Solution**: Update to the latest gem version. Older versions had parsing bugs that made messages appear to disappear. The API actually returns the same unread messages across multiple calls.
+
+**Problem**: "Empty messages array but total_messages shows count"  
+**Solution**: This was a parsing bug in older versions. Update the gem - messages now appear correctly.
+
+**Problem**: "Need defensive programming for message fields"  
+**Solution**: Update the gem. Message objects now have consistent, reliable accessors.
+
+### Testing Your Integration
+
+Use the diagnostic script to verify correct behavior:
+
+```bash
+CELLCASTKEY=your_api_key ruby examples/enhanced_diagnostics.rb
+```
+
+This will test:
+- Message persistence across multiple reads
+- Explicit marking behavior  
+- Object structure consistency
+- Raw API vs gem parity
+
+### Common Patterns
+
+**❌ Incorrect assumption**:
+```ruby
+# Messages are NOT auto-marked as read
+messages1 = client.get_inbound_messages
+messages2 = client.get_inbound_messages
+# messages1 and messages2 will be identical until explicitly marked
+```
+
+**✅ Correct polling pattern**:
+```ruby
+def poll_messages
+  messages = client.get_inbound_messages
+  process_messages(messages)
+  
+  # Mark as read only after successful processing
+  message_ids = messages.map(&:message_id)
+  client.mark_messages_read(message_ids: message_ids)
+end
+```
+
+**❌ Incorrect field access**:
+```ruby
+msg.to  # Inbound messages don't have 'to' field
+```
+
+**✅ Correct field access**:
+```ruby
+msg.from        # Sender's number
+msg.body        # Message content  
+msg.message_id  # Unique identifier
+msg.received_at # Timestamp
 ```
 
 ## Official API Documentation

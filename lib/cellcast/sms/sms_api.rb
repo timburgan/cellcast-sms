@@ -49,10 +49,20 @@ module Cellcast
       end
 
       # Get inbound messages/responses
+      # 
+      # IMPORTANT: This endpoint returns UNREAD messages only. Messages are NOT
+      # automatically marked as read when you call this endpoint - they will persist
+      # across multiple calls until you explicitly mark them as read using the
+      # mark_inbound_read or mark_inbound_read_bulk endpoints.
+      # 
+      # This behavior makes the endpoint safe for polling systems - you can call it
+      # multiple times and process the same messages, only marking them as read
+      # after successful processing.
+      #
       # Official endpoint: GET https://cellcast.com.au/api/v3/get-responses?page=<page>&type=sms
       # @param page [Integer] Page number for pagination (default: 1)
       # @param type [String] Message type, typically 'sms' (default: 'sms')
-      # @return [Hash] API response with inbound messages
+      # @return [Hash] API response with inbound messages in data.responses array
       def get_responses(page: 1, type: 'sms')
         @client.request(method: :get, path: "get-responses?page=#{page}&type=#{type}")
       end

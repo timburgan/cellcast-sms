@@ -258,6 +258,33 @@ module Cellcast
         sms.mark_inbound_read_bulk(timestamp: timestamp)
       end
 
+      # Mark a specific message as read
+      # @param message_id [String] The message ID to mark as read
+      # @return [Hash] Raw API response
+      def mark_message_read(message_id:)
+        sms.mark_inbound_read(message_id: message_id)
+      end
+
+      # Mark multiple messages as read
+      # @param message_ids [Array<String>] Array of message IDs to mark as read
+      # @param before [String, Time, nil] Alternative: mark all messages before this timestamp
+      # @return [Hash] Raw API response
+      def mark_messages_read(message_ids: nil, before: nil)
+        if message_ids
+          # If empty array, return nil without making API calls
+          return nil if message_ids.empty?
+          
+          # Mark specific messages by ID (requires multiple API calls)
+          message_ids.map { |id| mark_message_read(message_id: id) }.last
+        elsif before
+          # Mark all messages before timestamp (single API call)
+          mark_all_read(before: before)
+        else
+          # Mark all current messages (single API call)
+          mark_all_read
+        end
+      end
+
       # Mark all unread messages as read with enhanced functionality
       # @param before [Time, nil] Only mark messages received before this time
       # @return [Integer] Number of messages marked as read
